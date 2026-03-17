@@ -1,3 +1,4 @@
+import csv
 import json
 import os
 from dotenv import load_dotenv
@@ -5,7 +6,7 @@ from flask import Flask
 
 load_dotenv()
 from flask_cors import CORS
-from models import db, Episode, Review
+from models import Place, db
 from routes import register_routes
 
 # src/ directory and project root (one level up)
@@ -35,27 +36,50 @@ def init_db():
         db.create_all()
         
         # Initialize database with data from init.json if empty
-        if Episode.query.count() == 0:
-            json_file_path = os.path.join(current_directory, 'init.json')
-            with open(json_file_path, 'r') as file:
-                data = json.load(file)
-                for episode_data in data['episodes']:
-                    episode = Episode(
-                        id=episode_data['id'],
-                        title=episode_data['title'],
-                        descr=episode_data['descr']
-                    )
-                    db.session.add(episode)
+        # if Episode.query.count() == 0:
+        #     json_file_path = os.path.join(current_directory, 'init.json')
+        #     with open(json_file_path, 'r') as file:
+        #         data = json.load(file)
+        #         for episode_data in data['episodes']:
+        #             episode = Episode(
+        #                 id=episode_data['id'],
+        #                 title=episode_data['title'],
+        #                 descr=episode_data['descr']
+        #             )
+        #             db.session.add(episode)
                 
-                for review_data in data['reviews']:
-                    review = Review(
-                        id=review_data['id'],
-                        imdb_rating=review_data['imdb_rating']
-                    )
-                    db.session.add(review)
+        #         for review_data in data['reviews']:
+        #             review = Review(
+        #                 id=review_data['id'],
+        #                 imdb_rating=review_data['imdb_rating']
+        #             )
+        #             db.session.add(review)
             
+        #     db.session.commit()
+        #     print("Database initialized with episodes and reviews data")
+
+        if Place.query.count() == 0:
+            csv_path = os.path.join(project_root, 'data', 'all_places.csv')
+
+            with open(csv_path, 'r', encoding='utf-8') as file:
+                reader = csv.DictReader(file)
+                for info in reader:
+                    place = Place(
+                        name=info['name'],
+                        price_level=int(info['price_level']) if info['price_level'] else None,
+                        rating=float(info['rating']) if info['rating'] else None,
+                        description=info['description'] if info['description'] else None,
+                        website_url=info['website_url'] if info['website_url'] else None,
+                        formatted_address=info['formatted_address'] if info['formatted_address'] else None,
+                        latitude=float(info['latitude']) if info['latitude'] else None,
+                        longitude=float(info['longitude']) if info['longitude'] else None,
+                    )
+                    db.session.add(place)
             db.session.commit()
-            print("Database initialized with episodes and reviews data")
+            print("Database initialized with places data")
+            
+
+        
 
 init_db()
 

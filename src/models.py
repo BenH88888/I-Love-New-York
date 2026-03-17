@@ -2,22 +2,18 @@ from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
 
-# Define Episode model
-class Episode(db.Model):
-    __tablename__ = 'episodes'
+class Place(db.Model):
+    __tablename__ = 'places'
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(64), nullable=False)
-    descr = db.Column(db.String(1024), nullable=False)
-    
-    def __repr__(self):
-        return f'Episode {self.id}: {self.title}'
+    name = db.Column(db.String(128), nullable=False)
+    price_level = db.Column(db.Integer)
+    rating = db.Column(db.Float)
+    description = db.Column(db.Text)
+    website_url = db.Column(db.String(256))
+    formatted_address = db.Column(db.String(256))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
 
-# Define Review model
-class Review(db.Model):
-    __tablename__ = 'reviews'
-    id = db.Column(db.Integer, primary_key=True)
-    imdb_rating = db.Column(db.Float, nullable=False)
-    
     def __repr__(self):
-        return f'Review {self.id}: {self.imdb_rating}'
-
+        return f'Restaurant {self.id}: {self.name}'
+    
