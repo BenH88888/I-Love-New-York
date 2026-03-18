@@ -66,7 +66,7 @@ def init_db():
                 for info in reader:
                     place = Place(
                         name=info['name'],
-                        price_level=int(info['price_level']) if info['price_level'] else None,
+                        price_level=str(info['price_level']) if info['price_level'] else None,
                         rating=float(info['rating']) if info['rating'] else None,
                         description=info['description'] if info['description'] else None,
                         website_url=info['website_url'] if info['website_url'] else None,

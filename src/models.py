@@ -6,7 +6,7 @@ class Place(db.Model):
     __tablename__ = 'places'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(128), nullable=False)
-    price_level = db.Column(db.Integer)
+    price_level = db.Column(db.String(64))
     rating = db.Column(db.Float)
     description = db.Column(db.Text)
     website_url = db.Column(db.String(256))
