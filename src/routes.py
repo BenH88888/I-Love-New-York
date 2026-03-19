@@ -7,6 +7,7 @@ import json
 import os
 from flask import send_from_directory, request, jsonify
 from models import db, Place
+from algo import get_results
 
 # ── AI toggle ────────────────────────────────────────────────────────────────
 USE_LLM = False
@@ -17,23 +18,26 @@ USE_LLM = False
 def json_search(query):
     if not query or not query.strip():
         query = ""
-    results = db.session.query(Place).filter(
+    results = get_results(query)
+    if results == 0:
+        results = db.session.query(Place).filter(
         Place.name.ilike(f'%{query}%')
-    ).all()
-    matches = []
-    for place in results:
-        matches.append({
-            'id': place.id,
-            'name': place.name,
-            'description': place.description,
-            'rating': place.rating,
-            'price_level': place.price_level,
-            'formatted_address': place.formatted_address,
-            'website_url': place.website_url,
-            'latitude': place.latitude,
-            'longitude': place.longitude
-        })
-    return matches
+        ).all()
+        matches = []
+        for place in results:
+            matches.append({
+                'id': place.id,
+                'name': place.name,
+                'description': place.description,
+                'rating': place.rating,
+                'price_level': place.price_level,
+                'formatted_address': place.formatted_address,
+                'website_url': place.website_url,
+                'latitude': place.latitude,
+                'longitude': place.longitude
+            })
+        return matches
+    return results
 
 
 def register_routes(app):
