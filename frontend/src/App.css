@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 .full-body-container {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -8,6 +10,9 @@
   align-items: center;
   flex-direction: column;
   background-color: #ffffff;
+  background-image: url(assets/NYC_background.jpg);
+  background-size: cover;
+  background-position: center;
 }
 
 /* ── Header ────────────────────────────────────────────────────────────────── */
@@ -16,13 +21,14 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  font-family: 'gothic';
 }
 
 .google-colors {
   display: flex;
   align-items: center;
-  font-size: 48px;
-  font-family: 'Open Sans', sans-serif;
+  font-size: 64px;
+  font-family: 'gothic script';
 }
 
 .google-colors h1 {
@@ -47,6 +53,7 @@
   width: 600px;
   cursor: text;
   transition: box-shadow 0.2s;
+  background-color: #fff;
 }
 
 .input-box:hover,
@@ -79,13 +86,20 @@
   flex-direction: column;
   gap: 1.5rem;
   margin-top: 2rem;
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  overflow: auto;
+  overscroll-behavior: auto;
+  margin-bottom: 2rem;
 }
 
 .episode-item {
   padding: 1.5rem;
-  background-color: #f8f9fa;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-bottom-color: #000;
 }
 
 .episode-title {

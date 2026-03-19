@@ -41,16 +41,18 @@ function App(): JSX.Element {
         </div>
       </div>
 
-      {/* Search results (always shown) */}
-      <div id="answer-box">
-        {places.map((place, index) => (
-          <div key={index} className="place-item">
-            <h3 className="place-name">{place.name}</h3>
-            <p className="place-description">{place.description}</p>
-            <p className="place-rating">Rating: {place.rating}</p>
-          </div>
-        ))}
-      </div>
+      {/* Search results (shown only when we have places) */}
+      {places.length > 0 && (
+        <div id="answer-box">
+          {places.map((place, index) => (
+            <div key={index} className="place-item">
+              <h3 className="place-name">{place.name}</h3>
+              <p className="place-description">{place.description}</p>
+              <p className="place-rating">Rating: {place.rating}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Chat (only when USE_LLM = True in routes.py) */}
       {useLlm && <Chat onSearchTerm={handleSearch} />}
