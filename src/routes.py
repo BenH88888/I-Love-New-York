@@ -19,7 +19,7 @@ def json_search(query):
     if not query or not query.strip():
         query = ""
     results = get_results(query)
-    if results == 0:
+    if results == []:
         results = db.session.query(Place).filter(
         Place.name.ilike(f'%{query}%')
         ).all()
@@ -36,6 +36,7 @@ def json_search(query):
                 'latitude': place.latitude,
                 'longitude': place.longitude
             })
+        print("name")
         return matches
     return results
 
