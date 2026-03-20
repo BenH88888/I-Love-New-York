@@ -27,14 +27,14 @@ function App(): JSX.Element {
     <div className={`full-body-container ${useLlm ? 'llm-mode' : ''}`}>
       {/* Search bar (always shown) */}
       <div className="top-text">
-        <div className="google-colors">
-          <h1 id="google-3"> I Love New York </h1>
+        <div className="text-7xl font-['gothic_script'] text-stone-100">
+          <h1> Discover New York </h1>
         </div>
         <div className="input-box" onClick={() => document.getElementById('search-input')?.focus()}>
           <img src={SearchIcon} alt="search" />
           <input
             id="search-input"
-            placeholder="Search for a place in New York..."
+            placeholder="Search for places in New York..."
             value={searchTerm}
             onChange={(e) => handleSearch(e.target.value)}
           />
@@ -48,7 +48,9 @@ function App(): JSX.Element {
             <div key={index} className="place-item">
               <h3 className="place-name">{place.name}</h3>
               <p className="place-description">{place.description}</p>
+              <p className="place-address">Address: {place.formatted_address}</p>
               <p className="place-rating">Rating: {place.rating}</p>
+              <a className="place-website" href={place.website_url} target="_blank" rel="noopener noreferrer">View Website</a>
             </div>
           ))}
         </div>

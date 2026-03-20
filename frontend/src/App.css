@@ -9,10 +9,17 @@
   justify-content: start;
   align-items: center;
   flex-direction: column;
-  background-color: #ffffff;
-  background-image: url(assets/NYC_background.jpg);
+}
+
+.full-body-container::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: url("assets/NYC_background.jpg");
   background-size: cover;
   background-position: center;
+  filter: blur(3px);
+  z-index: -1;
 }
 
 /* ── Header ────────────────────────────────────────────────────────────────── */
@@ -21,7 +28,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  font-family: 'gothic';
 }
 
 .google-colors {
@@ -95,21 +101,23 @@
   margin-bottom: 2rem;
 }
 
-.episode-item {
+.place-item {
   padding: 1.5rem;
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   border-bottom-color: #000;
+  position: relative;
 }
 
-.episode-title {
+.place-name {
   font-size: 1.25rem;
+  font-weight: 700;
   color: #1a73e8;
   margin-bottom: 0.5rem;
   font-family: 'Kanit', sans-serif;
 }
 
-.episode-desc {
+.place-description {
   font-size: 1rem;
   color: #3c4043;
   line-height: 1.6;
@@ -117,12 +125,29 @@
   font-family: 'Montserrat', sans-serif;
 }
 
-.episode-rating {
+.place-rating {
   font-size: 0.9rem;
   color: #5f6368;
   font-weight: 600;
 }
 
+.place-address {
+  font-size: 0.9rem;
+  color: #5f6368;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.place-website {
+  font-size: 0.9rem;
+  color: #1a73e8;
+  font-weight: 600;
+  margin-top: 0.5rem;
+  text-decoration: none;
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+}
 /* ── LLM mode: constrain answer-box so chat gets space ────────────────────── */
 
 .llm-mode #answer-box {
