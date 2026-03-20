@@ -8,10 +8,10 @@ from models import Place
 current_directory = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_directory)
 
- 
 
-def get_results(query, top=10):
-    places = Place.query.all()
+def get_results(query, top=10, places=None):
+    if places is None:
+        places = Place.query.all()
     combined = []
     for p in places:
         name = p.name if p.name else ""
@@ -20,20 +20,23 @@ def get_results(query, top=10):
         price = p.price_level if p.price_level else ""
         combined += [name + " " + description + " " + address+ " " + price]
 
-    vectorizer = TfidfVectorizer(max_features=5000, stop_words = "english", max_df= .9,min_df=1)
+    if len(combined) == 0:
+        return []
+
+    vectorizer = TfidfVectorizer(max_features=5000, stop_words = "english", max_df= .9, min_df=1)
     words = vectorizer.fit_transform(combined)
     lower = query.lower()
     vector = vectorizer.transform([lower])
     value = cosine_similarity(vector, words).flatten()
-    if value.max() ==0:
+    if value.max() == 0:
         return []
     best = np.argsort(-value)[:top]
     results = []
     for i in best:
-        if value[i] >0:
-            p =places[i]
+        if value[i] > 0:
+            p = places[i]
             results.append({
-                "id":p.id,
+                "id": p.id,
                 "name": p.name or "",
                 "description": p.description or "",
                 "rating": p.rating if p.rating is not None else 0,

@@ -15,13 +15,30 @@ USE_LLM = False
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+# Cache places at startup to avoid querying all rows each request
+PLACES_CACHE = []
+
+def refresh_places_cache(app=None):
+    global PLACES_CACHE
+    if app is not None:
+        with app.app_context():
+            PLACES_CACHE = Place.query.all()
+    else:
+        PLACES_CACHE = Place.query.all()
+
+
 def json_search(query):
     if not query or not query.strip():
         query = ""
-    results = get_results(query)
+
+    if not PLACES_CACHE:
+        refresh_places_cache()
+
+    results = get_results(query, places=PLACES_CACHE)
+
     if results == []:
         results = db.session.query(Place).filter(
-        Place.name.ilike(f'%{query}%')
+            Place.name.ilike(f'%{query}%')
         ).all()
         matches = []
         for place in results:
@@ -42,6 +59,9 @@ def json_search(query):
 
 
 def register_routes(app):
+    # Ensure the in-memory cache is initialized after DB setup
+    refresh_places_cache(app)
+
     @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')
     def serve(path):
