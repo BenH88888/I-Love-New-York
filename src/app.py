@@ -56,7 +56,7 @@ def init_db():
         #     print("Database initialized with episodes and reviews data")
 
         if Place.query.count() == 0:
-            csv_path = os.path.join(project_root, 'data', 'all_places.csv')
+            csv_path = os.path.join(project_root,'src', 'data', 'all_places.csv')
 
             with open(csv_path, 'r', encoding='utf-8') as file:
                 reader = csv.DictReader(file)
