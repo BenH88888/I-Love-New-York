@@ -5,7 +5,7 @@ WORKDIR /app/frontend
 
 COPY frontend/package*.json ./
 
-COPY data/ /var/www/data/
+COPY src/data/ /var/www/data/
 
 RUN npm install
 
