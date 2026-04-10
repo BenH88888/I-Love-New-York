@@ -17,7 +17,8 @@ def get_results(query, top=10, places=None):
         description = p.description if p.description else ""
         address = p.formatted_address if p.formatted_address else ""
         price = p.price_level if p.price_level else ""
-        combined += [name + " " + description + " " + address+ " " + price]
+        reviews_text_combined = p.reviews_text_combined if p.reviews_text_combined else ""
+        combined += [name + " " + description + " " + address+ " " + price + " " + reviews_text_combined]
 
     if len(combined) == 0:
         return []
@@ -43,7 +44,8 @@ def get_results(query, top=10, places=None):
                 "formatted_address": p.formatted_address or "",
                 "website_url": p.website_url or "",
                 "latitude": p.latitude if p.latitude is not None else 0,
-                "longitude": p.longitude if p.longitude is not None else 0
+                "longitude": p.longitude if p.longitude is not None else 0,
+                "reviews_text_combined": p.reviews_text_combined if p.reviews_text_combined else ""
             })
     return results
 

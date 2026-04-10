@@ -8,4 +8,5 @@ export interface Place {
   website_url: string;
   latitude: number;
   longitude: number;
+  reviews_text_combined: string;
 }

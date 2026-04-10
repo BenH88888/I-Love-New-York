@@ -51,7 +51,8 @@ def json_search(query):
                 'formatted_address': place.formatted_address,
                 'website_url': place.website_url,
                 'latitude': place.latitude,
-                'longitude': place.longitude
+                'longitude': place.longitude,
+                'reviews_text_combined': place.reviews_text_combined
             })
         print("name")
         return matches

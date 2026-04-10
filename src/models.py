@@ -13,6 +13,7 @@ class Place(db.Model):
     formatted_address = db.Column(db.String(256))
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
+    reviews_text_combined = db.Column(db.Text)
 
     def __repr__(self):
         return f'Restaurant {self.id}: {self.name}'
