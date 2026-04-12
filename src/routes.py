@@ -7,7 +7,7 @@ import json
 import os
 from flask import send_from_directory, request, jsonify
 from models import db, Place
-from algo import get_results
+from algo import get_results, get_results_svd
 
 # ── AI toggle ────────────────────────────────────────────────────────────────
 USE_LLM = False
@@ -34,7 +34,7 @@ def json_search(query):
     if not PLACES_CACHE:
         refresh_places_cache()
 
-    results = get_results(query, places=PLACES_CACHE)
+    results = get_results_svd(query, places=PLACES_CACHE)
 
     if results == []:
         results = db.session.query(Place).filter(

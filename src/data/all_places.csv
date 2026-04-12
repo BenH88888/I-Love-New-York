@@ -1,4 +1,4 @@
-Name,Rating,Description,Website_url,formatted_address,lat,long,old_price_level,price_level
+name,rating,description,website_url,formatted_address,latitude,longitude,old_price_level,price_level
 The Metropolitan Museum of Art,4.8,"A grand setting for one of the world's greatest collections of art, from ancient to contemporary.",https://www.metmuseum.org/,"1000 5th Ave, New York, NY 10028, USA",40.7794366,-73.963244,,
 American Museum of Natural History,4.6,"From dinosaurs to outer space & everything in between, this huge museum showcases natural wonders.",https://www.amnh.org/,"200 Central Prk W, New York, NY 10024, USA",40.7813241,-73.9739882,,
 Solomon R. Guggenheim Museum,4.3,Frank Lloyd Wright–designed modern art museum with an architecturally significant spiral rotunda.,https://www.guggenheim.org/,"1071 5th Ave, New York, NY 10128, USA",40.7829796,-73.9589706,,
