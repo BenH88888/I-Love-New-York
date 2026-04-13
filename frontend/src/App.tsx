@@ -149,7 +149,6 @@ function App(): JSX.Element {
                 <div className="place-item-content">
                   <h3 className="place-name">{place.name}</h3>
                   <p className="place-description">{place.description}</p>
-                  <p className="place-address">Address: {place.formatted_address}</p>
                   <p className="place-rating">
                     Rating: {place.rating ?? 'N/A'}
                   </p>

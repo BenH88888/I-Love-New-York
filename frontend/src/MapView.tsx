@@ -18,16 +18,14 @@ const NYC_CENTER = { lat: 40.7128, lng: -74.0060 }
 const DEFAULT_ZOOM = 11
 
 function buildInfoWindowContent(place: Place): string {
-  const websiteHtml = place.website_url
-    ? `<a href="${place.website_url}" target="_blank" rel="noopener noreferrer">View Website</a>`
-    : ''
+  // const websiteHtml = place.website_url
+  //   ? `<a href="${place.website_url}" target="_blank" rel="noopener noreferrer">View Website</a>`
+  //   : ''
 
   return `
     <div style="max-width: 240px; font-family: Arial, sans-serif;">
-      <h3 style="margin: 0 0 8px; font-size: 16px;">${place.name}</h3>
-      <p style="margin: 0 0 6px; font-size: 13px; color: #444;">${place.formatted_address}</p>
-      ${place.rating ? `<p style="margin: 0 0 6px; font-size: 13px;">Rating: ${place.rating}</p>` : ''}
-      ${websiteHtml}
+      <h3 style="margin: 0 0 8px; font-size: 16px; font-weight: bold;">${place.name}</h3>
+      <p style="margin: 0 0 6px; font-size: 13px; color: #444;">Address: ${place.formatted_address}</p>
     </div>
   `
 }
@@ -43,11 +41,11 @@ function loadGoogleMapsApi(): Promise<void> {
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 
-  if (!apiKey) {
-    return Promise.reject(
-      new Error('Missing VITE_GOOGLE_MAPS_API_KEY in frontend/.env.local')
-    )
-  }
+  // if (!apiKey) {
+  //   return Promise.reject(
+  //     new Error('Missing VITE_GOOGLE_MAPS_API_KEY in frontend/.env.local')
+  //   )
+  // }
 
   window.__googleMapsInitPromise = new Promise((resolve, reject) => {
     const existingScript = document.querySelector(
