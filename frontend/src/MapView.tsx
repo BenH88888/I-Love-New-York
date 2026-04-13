@@ -41,11 +41,11 @@ function loadGoogleMapsApi(): Promise<void> {
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 
-  // if (!apiKey) {
-  //   return Promise.reject(
-  //     new Error('Missing VITE_GOOGLE_MAPS_API_KEY in frontend/.env.local')
-  //   )
-  // }
+  if (!apiKey) {
+    return Promise.reject(
+      new Error('Missing VITE_GOOGLE_MAPS_API_KEY in frontend/.env.local')
+    )
+  }
 
   window.__googleMapsInitPromise = new Promise((resolve, reject) => {
     const existingScript = document.querySelector(

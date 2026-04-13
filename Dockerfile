@@ -3,10 +3,13 @@ FROM node:20 AS frontend-build
 
 WORKDIR /app/frontend
 
+ARG VITE_GOOGLE_MAPS_API_KEY
+ARG VITE_GOOGLE_MAP_ID
+
+ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
+ENV VITE_GOOGLE_MAP_ID=$VITE_GOOGLE_MAP_ID
+
 COPY frontend/package*.json ./
-
-COPY src/data/ /var/www/data/
-
 RUN npm install
 
 COPY frontend/ ./
