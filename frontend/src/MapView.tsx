@@ -43,7 +43,7 @@ function loadGoogleMapsApi(): Promise<void> {
 
   if (!apiKey) {
     return Promise.reject(
-      new Error('Missing VITE_GOOGLE_MAPS_API_KEY in frontend/.env.local')
+      new Error('Missing VITE_GOOGLE_MAPS_API_KEY at build time')
     )
   }
 
