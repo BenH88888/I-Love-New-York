@@ -56,7 +56,8 @@ def json_search(query, top=10):
                 'website_url': place.website_url or "",
                 'latitude': place.latitude if place.latitude is not None else 0,
                 'longitude': place.longitude if place.longitude is not None else 0,
-                'reviews_text_combined': place.reviews_text_combined or ""
+                'reviews_text_combined': place.reviews_text_combined or "",
+                'similarity_score': None
             })
         return matches
 

@@ -10,6 +10,8 @@ function App(): JSX.Element {
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [places, setPlaces] = useState<Place[]>([])
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
+  const [loading, setLoading] = useState<boolean>(false)
+  const [hasSearched, setHasSearched] = useState<boolean>(false)
 
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -26,7 +28,12 @@ function App(): JSX.Element {
       abortControllerRef.current.abort()
     }
 
-    if (value.trim() === '') {
+    const trimmedValue = value.trim()
+
+    if (trimmedValue === '') {
+      requestIdRef.current += 1
+      setLoading(false)
+      setHasSearched(false)
       setPlaces([])
       setSelectedPlace(null)
       return
@@ -36,9 +43,12 @@ function App(): JSX.Element {
     const controller = new AbortController()
     abortControllerRef.current = controller
 
+    setLoading(true)
+    setHasSearched(true)
+
     try {
       const response = await fetch(
-        `/api/places?name=${encodeURIComponent(value)}`,
+        `/api/places?name=${encodeURIComponent(trimmedValue)}`,
         { signal: controller.signal }
       )
 
@@ -52,6 +62,10 @@ function App(): JSX.Element {
         return
       }
 
+      if (trimmedValue === '') {
+        return
+      }
+
       const limited = data.slice(0, 10)
       setPlaces(limited)
       setSelectedPlace(limited.length > 0 ? limited[0] : null)
@@ -60,9 +74,17 @@ function App(): JSX.Element {
         return
       }
 
+      if (currentRequestId !== requestIdRef.current) {
+        return
+      }
+
       console.error('Search failed:', error)
       setPlaces([])
       setSelectedPlace(null)
+    } finally {
+      if (currentRequestId === requestIdRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -71,6 +93,22 @@ function App(): JSX.Element {
 
     if (debounceTimeoutRef.current !== null) {
       window.clearTimeout(debounceTimeoutRef.current)
+      debounceTimeoutRef.current = null
+    }
+
+    if (value.trim() === '') {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+
+      requestIdRef.current += 1
+
+      setLoading(false)
+      setHasSearched(false)
+      setPlaces([])
+      setSelectedPlace(null)
+      return
     }
 
     debounceTimeoutRef.current = window.setTimeout(() => {
@@ -100,10 +138,11 @@ function App(): JSX.Element {
 
   const resultCountText = useMemo(() => {
     if (searchTerm.trim() === '') return 'Search for places in New York'
-    if (places.length === 0) return 'No matches found'
+    if (loading) return 'Searching...'
+    if (places.length === 0 && hasSearched) return 'No matches found'
     if (places.length === 1) return '1 result'
     return `${places.length} results`
-  }, [places, searchTerm])
+  }, [places, searchTerm, loading, hasSearched])
 
   if (useLlm === null) return <></>
 
@@ -130,9 +169,24 @@ function App(): JSX.Element {
         </div>
 
         <div className="results-panel">
-          {places.length === 0 && (
+          {searchTerm.trim() === '' && !loading && (
             <div className="empty-state">
               Start typing to see matching places appear on the map.
+            </div>
+          )}
+
+          {loading && (
+            <div className="loading-state">
+              <div className="loading-spinner" />
+              <p>Searching places...</p>
+            </div>
+          )}
+
+          {!loading && hasSearched && places.length === 0 && (
+            <div className="empty-state">
+              No places matched your search. Try something broader like
+              &nbsp;<strong>pizza</strong>, <strong>museum</strong>, or
+              &nbsp;<strong>date night</strong>.
             </div>
           )}
 
@@ -149,8 +203,16 @@ function App(): JSX.Element {
                 <div className="place-item-content">
                   <h3 className="place-name">{place.name}</h3>
                   <p className="place-description">{place.description}</p>
+                  {place.price_level && (
+                    <p className='place-price'>Price: {place.price_level}</p>
+                  )}
                   <p className="place-rating">
                     Rating: {place.rating ?? 'N/A'}
+                  </p>
+                  <p className="place-score">
+                    {place.similarity_score !== null
+                      ? `Similarity match: ${(place.similarity_score*100).toFixed(1)}%`
+                      : 'N/A'}
                   </p>
 
                   {place.website_url && (

@@ -9,4 +9,5 @@ export interface Place {
   latitude: number;
   longitude: number;
   reviews_text_combined: string;
+  similarity_score: number | null;
 }
