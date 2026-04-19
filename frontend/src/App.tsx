@@ -203,28 +203,52 @@ function App(): JSX.Element {
                 <div className="place-item-content">
                   <h3 className="place-name">{place.name}</h3>
                   <p className="place-description">{place.description}</p>
-                  {place.price_level && (
-                    <p className='place-price'>Price: {place.price_level}</p>
-                  )}
-                  <p className="place-rating">
-                    Rating: {place.rating ?? 'N/A'}
-                  </p>
-                  <p className="place-score">
+                    <div className='place-info'>
+                      {place.price_level && (
+                        <p className='place-price place-box'>
+                          {(['cheap', 'moderate', 'expensive', 'very expensive'].includes(place.price_level)
+                            ? '$'.repeat(['cheap', 'moderate', 'expensive', 'very expensive'].indexOf(place.price_level) + 1)
+                            : place.price_level)}
+                        </p>
+                      )}
+                    <p className="place-rating place-box">
+                    ⭐ {place.rating ?? 'N/A'}
+                    </p>
+                  <p className="place-score place-box">
                     {place.similarity_score !== null
-                      ? `Similarity match: ${(place.similarity_score*100).toFixed(1)}%`
+                      ? `${(place.similarity_score*100).toFixed(1)}% match`
                       : 'N/A'}
                   </p>
+                  </div>
+                  {isActive && (
 
-                  {place.website_url && (
-                    <a
-                      className="place-website"
-                      href={place.website_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      View Website
-                    </a>
+                    <div className='place-expanded'>
+                      <div className='place-divide'>
+                      <div>
+                        {place.formatted_address && (
+                        <p className='place-address'>Address: {place.formatted_address}</p>
+                        )}
+                      </div>
+                      {place.tags?.length > 0 && (
+                        <div className="place-tags">
+                          {(place.tags ?? []).map((tag) => (
+                            <span key={tag} className="place-tag">{tag}</span>
+                          ))}
+                        </div>
+                      )}
+                      {place.website_url && (
+                        <a
+                          className="place-website"
+                          href={place.website_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          View Website
+                        </a>
+                      )}
+                    </div>
+                    </div>
                   )}
                 </div>
               </button>

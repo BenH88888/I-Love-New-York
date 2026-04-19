@@ -377,6 +377,7 @@ def get_results(query, top=10, places=None):
             "longitude": p.longitude if p.longitude is not None else 0,
             "reviews_text_combined": p.reviews_text_combined or "",
             "similarity_score": float(similarities[i]),
+            "tags": get_top_terms_for_place(int(i), top_k=4),
         })
 
     return results
@@ -384,6 +385,29 @@ def get_results(query, top=10, places=None):
 
 def get_results_svd(query, top=10, places=None):
     return get_results(query=query, top=top, places=places)
+
+def get_top_terms_for_place(place_index, top_k=4):
+    tag_block = {"new", "york", "park", "street", "ave", "ny", "nyc", "city", 
+                 "restaurant", "place", "located", "offers", "featuring", "including",
+                 "10301", "10001", "staten", "island", "manhattan", "brooklyn", "bronx"}
+    tfidf_matrix = SEARCH_INDEX["doc_vectors_raw"]
+    feature_names = SEARCH_INDEX["feature_names"]
+
+    if tfidf_matrix is None:
+        return []
+
+    row = tfidf_matrix[place_index].toarray()[0]
+    top_indices = np.argsort(row)[::-1]
+
+    tags = []
+    for i in top_indices:
+        term = feature_names[i]
+        if term not in tag_block and len(term) > 3:
+            tags.append(term)
+        if len(tags) >= top_k:
+            break
+
+    return tags
 
 
 

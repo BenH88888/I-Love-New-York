@@ -3,11 +3,12 @@ export interface Place {
   name: string;
   description: string;
   rating: number;
-  price_level: number;
+  price_level: string;
   formatted_address: string;
   website_url: string;
   latitude: number;
   longitude: number;
   reviews_text_combined: string;
   similarity_score: number | null;
+  tags: string[];
 }
