@@ -12,3 +12,9 @@ export interface Place {
   similarity_score: number | null;
   tags: string[];
 }
+
+export type QueryDimension= {
+  dimension: number;
+  activation: number;
+  terms: string[];
+}

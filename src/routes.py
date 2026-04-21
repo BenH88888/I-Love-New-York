@@ -60,9 +60,9 @@ def json_search(query, top=10):
                 'similarity_score': None,
                 'tags':[]
             })
-        return matches
+        return {"results":matches, "dimensions":[]}
 
-    return results[:top]
+    return results
 
 
 def register_routes(app):
@@ -82,6 +82,7 @@ def register_routes(app):
     @app.route("/api/places")
     def places_search():
         text = request.args.get("name", "")
+
         return jsonify(json_search(text, top=10))
 
     if USE_LLM:

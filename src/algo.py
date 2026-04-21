@@ -51,7 +51,7 @@ def build_search_index(places=None):
     vectorizer = TfidfVectorizer(
         max_features=5000,
         stop_words="english",
-        max_df=0.9,
+        max_df=0.4,
         min_df=1
     )
 
@@ -65,7 +65,7 @@ def build_search_index(places=None):
     doc_vectors = tfidf_matrix
 
     if use_svd:
-        n_components = min(50, n_docs - 1, n_terms - 1)
+        n_components = min(70, n_docs - 1, n_terms - 1)
         svd = TruncatedSVD(n_components=n_components, random_state=4300)
         doc_vectors = svd.fit_transform(tfidf_matrix)
 
@@ -90,7 +90,13 @@ def get_latent_dimensions(top_terms=10, top_dims=12):
 
     svd = SEARCH_INDEX["svd"]
     feature_names = SEARCH_INDEX["feature_names"]
-
+    block = {
+        "new", "york", "street", "ave", "ny", "nyc", "city",
+         "place", "located", "offers", "featuring", "including",
+        "10301", "10001", "11354", "st", "area", "also", "known", "open", "just",
+        "like", "great", "good", "best", "located", "near", "east", "west",
+        "north", "south", "new", "old", "local", "pl", "rd"
+    }
     dimensions = []
     max_dims = min(top_dims, svd.components_.shape[0])
 
@@ -98,8 +104,14 @@ def get_latent_dimensions(top_terms=10, top_dims=12):
         component = svd.components_[dim_idx]
 
         top_term_indices = np.argsort(component)[-top_terms:][::-1]
-        top_terms_for_dim = [feature_names[i] for i in top_term_indices]
-
+        top_terms_for_dim = []
+        for i in top_term_indices:
+            term = feature_names[i]
+            if term not in block and not term.isdigit():
+                top_terms_for_dim.append(feature_names[i])
+            
+        if not top_terms_for_dim:
+            continue
         dimensions.append({
             "dimension": dim_idx,
             "top_terms": top_terms_for_dim,
@@ -379,17 +391,40 @@ def get_results(query, top=10, places=None):
             "similarity_score": float(similarities[i]),
             "tags": get_top_terms_for_place(int(i), top_k=4),
         })
+    latent_dims = get_latent_dimensions(top_terms=4, top_dims=svd.n_components)
+    dim_lookup = {d['dimension']: d['top_terms'] for d in latent_dims}
 
-    return results
+    analysis = analyze_query_dimensions(query, top_k=2)
+    query_dims = []
+    if analysis:
+        all_dims = analysis['positive_dimensions'] + analysis['negative_dimensions']
+        query_dims = [
+            {
+                'dimension': item['dimension'],
+                'activation': item['activation'],
+                'terms': dim_lookup.get(item['dimension'], []),
+            }
+            for item in sorted(all_dims, key=lambda x: abs(x['activation']), reverse=True)
+        ]
+
+    return {
+        "results": results,
+        "dimensions": query_dims,
+    }
+
 
 
 def get_results_svd(query, top=10, places=None):
     return get_results(query=query, top=top, places=places)
 
 def get_top_terms_for_place(place_index, top_k=4):
-    tag_block = {"new", "york", "park", "street", "ave", "ny", "nyc", "city", 
-                 "restaurant", "place", "located", "offers", "featuring", "including",
-                 "10301", "10001", "staten", "island", "manhattan", "brooklyn", "bronx"}
+    block = {
+        "new", "york", "street", "ave", "ny", "nyc", "city",
+         "place", "located", "offers", "featuring", "including",
+        "10301", "10001", "11354", "st", "area", "also", "known", "open", "just",
+        "like", "great", "good", "best", "located", "near", "east", "west",
+        "north", "south", "new", "old", "local", "pl", "rd"
+    }
     tfidf_matrix = SEARCH_INDEX["doc_vectors_raw"]
     feature_names = SEARCH_INDEX["feature_names"]
 
@@ -402,12 +437,13 @@ def get_top_terms_for_place(place_index, top_k=4):
     tags = []
     for i in top_indices:
         term = feature_names[i]
-        if term not in tag_block and len(term) > 3:
+        if term not in block and len(term) > 3 and not term.isdigit():
             tags.append(term)
         if len(tags) >= top_k:
             break
 
     return tags
+
 
 
 

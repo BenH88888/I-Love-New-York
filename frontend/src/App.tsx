@@ -4,6 +4,7 @@ import SearchIcon from './assets/mag.png'
 import { Place } from './types'
 import Chat from './Chat'
 import MapView from './MapView'
+import { QueryDimension } from './types'
 
 function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean | null>(null)
@@ -12,6 +13,7 @@ function App(): JSX.Element {
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
   const [hasSearched, setHasSearched] = useState<boolean>(false)
+  const [queryDimensions, setDimensions] = useState<QueryDimension[]>([])
 
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -56,7 +58,8 @@ function App(): JSX.Element {
         throw new Error(`Request failed with status ${response.status}`)
       }
 
-      const data: Place[] = await response.json()
+      const data = await response.json()
+      console.log(data)
 
       if (currentRequestId !== requestIdRef.current) {
         return
@@ -66,8 +69,9 @@ function App(): JSX.Element {
         return
       }
 
-      const limited = data.slice(0, 10)
+      const limited = (data.results ?? data).slice(0, 10)
       setPlaces(limited)
+      setDimensions(data.dimensions??[])
       setSelectedPlace(limited.length > 0 ? limited[0] : null)
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
@@ -166,6 +170,30 @@ function App(): JSX.Element {
           </div>
 
           <p className="results-summary">{resultCountText}</p>
+          {queryDimensions.length > 0 && (
+            <div className="query-dims">
+              <p className="query-dims-title">Query SVD dimensions</p>
+              {queryDimensions.map((dim) => {
+                const pct = Math.abs(dim.activation) * 50
+                const isPos = dim.activation >= 0
+                return (
+                  <div key={dim.dimension} className="dim-row">
+                    <div className="dim-header">
+                      <span className="dim-terms">{dim.terms.join(' · ')}</span>
+                      <span className="dim-num">d{dim.dimension} {isPos ? '+' : ''}{dim.activation.toFixed(2)}</span>
+                    </div>
+                    <div className="bar-track">
+                      <div className="bar-center" />
+                      <div
+                        className={`bar-fill ${isPos ? 'bar-pos' : 'bar-neg'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         <div className="results-panel">
@@ -211,9 +239,11 @@ function App(): JSX.Element {
                             : place.price_level)}
                         </p>
                       )}
+                    {place.rating>0 && (
                     <p className="place-rating place-box">
-                    ⭐ {place.rating ?? 'N/A'}
+                    ⭐ {place.rating  ?? 'N/A'}
                     </p>
+                    )}
                   <p className="place-score place-box">
                     {place.similarity_score !== null
                       ? `${(place.similarity_score*100).toFixed(1)}% match`
