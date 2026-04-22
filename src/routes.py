@@ -9,8 +9,8 @@ from models import db, Place
 from algo import get_results_svd, rebuild_search_index
 
 # ── AI toggle ────────────────────────────────────────────────────────────────
-USE_LLM = False
-# USE_LLM = True
+#USE_LLM = False
+USE_LLM = True
 # ─────────────────────────────────────────────────────────────────────────────
 
 PLACES_CACHE = []
