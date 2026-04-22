@@ -69,7 +69,7 @@ def register_chat_route(app, json_search):
         client = LLMClient(api_key=api_key)
         modified_query = rewrite_query(client, user_message)
 
-        ir_response = json_search(modified_query, top=5)
+        ir_response = json_search(modified_query, top=10)
         places = ir_response.get("results", []) if isinstance(ir_response, dict) else ir_response
         dimensions = ir_response.get("dimensions", []) if isinstance(ir_response, dict) else []
         context_text = build_rag_context(places)
