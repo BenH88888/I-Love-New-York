@@ -16,6 +16,8 @@ function App(): JSX.Element {
   const [chatOpen, setChatOpen] = useState<boolean>(true)
   const [baseModel, setBaseModel] = useState<BaseModel>('tfidf')
   const [useSvd, setUseSvd] = useState<boolean>(true)
+  const [summaries, setSummaries] = useState<Record<number, string>>({})
+  const [summaryLoading, setSummaryLoading] = useState<Record<number, boolean>>({})
 
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -37,6 +39,7 @@ function App(): JSX.Element {
     }
 
     const trimmedValue = value.trim()
+    if (trimmedValue!== searchTerm) setSearchTerm(trimmedValue)
 
     if (trimmedValue === '') {
       requestIdRef.current += 1
@@ -78,6 +81,8 @@ function App(): JSX.Element {
       setPlaces(limited)
       setDimensions(data.dimensions ?? [])
       setSelectedPlace(limited.length > 0 ? limited[0] : null)
+      if (useLlm && limited.length > 0) fetchSummary(limited[0])
+        
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
         return
@@ -104,6 +109,24 @@ function App(): JSX.Element {
     }
   }, [baseModel, useSvd])
 
+  const fetchSummary = async (place: Place) => {
+  if (summaries[place.id] || summaryLoading[place.id]) return // don't re-fetch
+  setSummaryLoading(prev => ({ ...prev, [place.id]: true }))
+  try {
+    const res = await fetch('/api/summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ place, query: searchTerm })
+    })
+    const data = await res.json()
+    setSummaries(prev => ({ ...prev, [place.id]: data.summary }))
+  } catch {
+    setSummaries(prev => ({ ...prev, [place.id]: 'Could not generate summary.' }))
+  } finally {
+    setSummaryLoading(prev => ({ ...prev, [place.id]: false }))
+  }
+  }
+
   const handleSearch = (value: string): void => {
     setSearchTerm(value)
 
@@ -129,7 +152,7 @@ function App(): JSX.Element {
 
     debounceTimeoutRef.current = window.setTimeout(() => {
       runSearch(value)
-    }, 300)
+    }, 600)
   }
 
   useEffect(() => {
@@ -241,7 +264,7 @@ function App(): JSX.Element {
             </div>
           )}
 
-          {queryDimensions.length > 0 && (
+          {queryDimensions.length > 0 && searchTerm.trim() !== '' && !loading  && baseModel !== 'sbert' && useSvd &&(
             <div className="query-dims">
               <p className="query-dims-title">Query SVD dimensions</p>
               {queryDimensions.map((dim) => {
@@ -265,28 +288,6 @@ function App(): JSX.Element {
               })}
             </div>
           )}
-        </div>
-          <div className="results-panel">
-          {searchTerm.trim() === '' && !loading && (
-            <div className="empty-state">
-              Start typing to see matching places appear on the map.
-            </div>
-          )}
-
-          {loading && (
-            <div className="loading-state">
-              <div className="loading-spinner" />
-              <p>Searching places...</p>
-            </div>
-          )}
-
-          {!loading && hasSearched && places.length === 0 && (
-            <div className="empty-state">
-              No places matched your search. Try something broader like
-              &nbsp;<strong>pizza</strong>, <strong>museum</strong>, or
-              &nbsp;<strong>date night</strong>.
-            </div>
-          )}
 
           {places.map((place) => {
             const isActive = selectedPlace?.id === place.id
@@ -296,7 +297,8 @@ function App(): JSX.Element {
                 key={place.id}
                 type="button"
                 className={`place-item ${isActive ? 'active' : ''}`}
-                onClick={() => setSelectedPlace(place)}
+                onClick={() => {setSelectedPlace(place) 
+                  if (useLlm) fetchSummary(place)}}
               >
                 <div className="place-item-content">
                   <h3 className="place-name">{place.name}</h3>
@@ -347,6 +349,21 @@ function App(): JSX.Element {
                           View Website
                         </a>
                       )}
+                      {useLlm && (
+                      <div className="ai-summary-section">
+                        {summaryLoading[place.id] ? (
+                          <div className="ai-summary-loading">
+                            <div className="loading-spinner" />
+                            <span>Generating AI summary...</span>
+                          </div>
+                        ) : summaries[place.id] ? (
+                          <div className="ai-summary">
+                            <span className="ai-summary-label">✨ Why this matches your search</span>
+                            <p>{summaries[place.id]}</p>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
                     </div>
                     </div>
                   )}

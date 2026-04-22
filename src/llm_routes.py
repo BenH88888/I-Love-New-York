@@ -52,8 +52,46 @@ def build_rag_context(places: list) -> str:
         )
     return "\n\n".join(lines)
 
+
+
 def register_chat_route(app, json_search):
     """Register the /api/chat SSE endpoint. Called from routes.py."""
+
+    @app.route("/api/summary", methods=["POST"])
+    def summary():
+        data = request.get_json() or {}
+        place = data.get("place", {})
+        query = data.get("query", "")
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are an enthusiastic NYC local guide. "
+                    "Write 2-3 sentences explaining what makes this place special "
+                    "and why it's a great match for the user's search. "
+                    "Be specific — mention details from the reviews. Be warm and helpful."
+                )
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"User searched for: {query}\n\n"
+                    f"Place: {place.get('name')}\n"
+                    f"Description: {place.get('description')}\n"
+                    f"Reviews: {(place.get('reviews_text_combined') or '')[:500]}"
+                )
+            }
+        ]
+
+        try:
+            client = LLMClient(api_key=os.getenv("API_KEY"))
+            raw = client.chat(messages)
+            response = (raw.get("content") if isinstance(raw, dict) else raw or "").strip()
+            return jsonify({"summary": response})
+        except Exception as e:
+            logger.error(f"Summary failed: {e}")
+            return jsonify({"error": str(e)}), 500
 
     @app.route("/api/chat", methods=["POST"])
     def chat():
