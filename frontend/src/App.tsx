@@ -13,6 +13,7 @@ function App(): JSX.Element {
   const [loading, setLoading] = useState<boolean>(false)
   const [hasSearched, setHasSearched] = useState<boolean>(false)
   const [queryDimensions, setDimensions] = useState<QueryDimension[]>([])
+  const [chatOpen, setChatOpen] = useState<boolean>(true)
   const [baseModel, setBaseModel] = useState<BaseModel>('tfidf')
   const [useSvd, setUseSvd] = useState<boolean>(true)
 
@@ -264,6 +265,28 @@ function App(): JSX.Element {
               })}
             </div>
           )}
+        </div>
+          <div className="results-panel">
+          {searchTerm.trim() === '' && !loading && (
+            <div className="empty-state">
+              Start typing to see matching places appear on the map.
+            </div>
+          )}
+
+          {loading && (
+            <div className="loading-state">
+              <div className="loading-spinner" />
+              <p>Searching places...</p>
+            </div>
+          )}
+
+          {!loading && hasSearched && places.length === 0 && (
+            <div className="empty-state">
+              No places matched your search. Try something broader like
+              &nbsp;<strong>pizza</strong>, <strong>museum</strong>, or
+              &nbsp;<strong>date night</strong>.
+            </div>
+          )}
 
           {places.map((place) => {
             const isActive = selectedPlace?.id === place.id
@@ -333,20 +356,30 @@ function App(): JSX.Element {
           })}
         </div>
 
-        {useLlm && (
-          <div className="chat-shell">
-            <Chat onSearchTerm={runSearch} />
-          </div>
-        )}
       </aside>
 
-      <main className="map-panel">
+    <div className="right-col">
+    <main className="map-panel">
         <MapView
           places={places}
           selectedPlace={selectedPlace}
           onMarkerClick={setSelectedPlace}
         />
-      </main>
+    </main>
+    {useLlm && (
+      <div className="chat-section">
+        <button className="section-toggle chat-toggle" onClick={() => setChatOpen(o => !o)}>
+          <span className="section-toggle-left">
+            <span>✨</span>
+            <span className="section-title">AI Assistant</span>
+            <span className="section-count">RAG-powered</span>
+          </span>
+          <span className={`chevron ${chatOpen ? 'open' : ''}`}>›</span>
+        </button>
+        {chatOpen && <div className="chat-shell"><Chat onSearchTerm={runSearch} /></div>}
+      </div>
+    )}
+    </div>
     </div>
   )
 }
