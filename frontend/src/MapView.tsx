@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Place } from './types'
 
+
 declare global {
   interface Window {
     google: any
@@ -97,7 +98,7 @@ function MapView({ places, selectedPlace, onMarkerClick }: MapViewProps): JSX.El
       mapRef.current = new google.maps.Map(mapContainerRef.current, {
         center: NYC_CENTER,
         zoom: DEFAULT_ZOOM,
-        mapId
+        mapId,
       })
 
       infoWindowRef.current = new google.maps.InfoWindow({

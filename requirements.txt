@@ -8,4 +8,6 @@ python-dotenv
 pandas
 scikit-learn
 numpy
+sentence-transformers
+torch
 git+https://github.com/MrPeterss/infosci-spark-client.git

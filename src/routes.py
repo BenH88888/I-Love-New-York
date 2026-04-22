@@ -6,7 +6,7 @@ To enable AI chat, set USE_LLM = True below. See llm_routes.py for AI code.
 import os
 from flask import send_from_directory, request, jsonify
 from models import db, Place
-from algo import get_results_svd, rebuild_search_index
+from algo import get_results
 
 # ── AI toggle ────────────────────────────────────────────────────────────────
 USE_LLM = False
@@ -24,19 +24,23 @@ def refresh_places_cache(app=None):
     else:
         PLACES_CACHE = Place.query.all()
 
-    rebuild_search_index(places=PLACES_CACHE)
 
-
-def json_search(query, top=10):
+def json_search(query, top=10, base_model='tfidf', use_svd=True):
     if not query or not query.strip():
-        return []
+        return {"results": [], "dimensions": []}
 
     if not PLACES_CACHE:
         refresh_places_cache()
 
-    results = get_results_svd(query, top=top, places=PLACES_CACHE)
+    results = get_results(
+        query=query,
+        top=top,
+        places=PLACES_CACHE,
+        base_model=base_model,
+        use_svd=use_svd,
+    )
 
-    if results == []:
+    if not results["results"]:
         fallback_results = (
             db.session.query(Place)
             .filter(Place.name.ilike(f'%{query}%'))
@@ -58,9 +62,9 @@ def json_search(query, top=10):
                 'longitude': place.longitude if place.longitude is not None else 0,
                 'reviews_text_combined': place.reviews_text_combined or "",
                 'similarity_score': None,
-                'tags':[]
+                'tags': []
             })
-        return {"results":matches, "dimensions":[]}
+        return {"results": matches, "dimensions": []}
 
     return results
 
@@ -82,8 +86,25 @@ def register_routes(app):
     @app.route("/api/places")
     def places_search():
         text = request.args.get("name", "")
+        top = request.args.get("top", 10, type=int)
+        base_model = request.args.get("base_model", "tfidf").lower()
+        use_svd = request.args.get("use_svd", "true").lower() == "true"
 
-        return jsonify(json_search(text, top=10))
+        print(f"[API] /api/places called | query={text!r} | base_model={base_model} | use_svd={use_svd}")
+
+        try:
+            result = json_search(
+                text,
+                top=top,
+                base_model=base_model,
+                use_svd=use_svd,
+            )
+            print("[API] search finished successfully")
+            return jsonify(result)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": str(e)}), 500
 
     if USE_LLM:
         from llm_routes import register_chat_route

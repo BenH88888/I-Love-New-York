@@ -1,10 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import './App.css'
 import SearchIcon from './assets/mag.png'
-import { Place } from './types'
+import { Place, QueryDimension, BaseModel } from './types'
 import Chat from './Chat'
 import MapView from './MapView'
-import { QueryDimension } from './types'
 
 function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean | null>(null)
@@ -14,6 +13,8 @@ function App(): JSX.Element {
   const [loading, setLoading] = useState<boolean>(false)
   const [hasSearched, setHasSearched] = useState<boolean>(false)
   const [queryDimensions, setDimensions] = useState<QueryDimension[]>([])
+  const [baseModel, setBaseModel] = useState<BaseModel>('tfidf')
+  const [useSvd, setUseSvd] = useState<boolean>(true)
 
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -25,7 +26,11 @@ function App(): JSX.Element {
       .then((data) => setUseLlm(data.use_llm))
   }, [])
 
-  const runSearch = async (value: string): Promise<void> => {
+  const runSearch = async (
+    value: string,
+    modelOverride?: BaseModel,
+    svdOverride?: boolean
+  ): Promise<void> => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
     }
@@ -38,6 +43,7 @@ function App(): JSX.Element {
       setHasSearched(false)
       setPlaces([])
       setSelectedPlace(null)
+      setDimensions([])
       return
     }
 
@@ -45,12 +51,15 @@ function App(): JSX.Element {
     const controller = new AbortController()
     abortControllerRef.current = controller
 
+    const resolvedBaseModel = modelOverride ?? baseModel
+    const resolvedUseSvd = svdOverride ?? useSvd
+
     setLoading(true)
     setHasSearched(true)
 
     try {
       const response = await fetch(
-        `/api/places?name=${encodeURIComponent(trimmedValue)}`,
+        `/api/places?name=${encodeURIComponent(trimmedValue)}&base_model=${resolvedBaseModel}&use_svd=${resolvedUseSvd}&top=10`,
         { signal: controller.signal }
       )
 
@@ -59,19 +68,14 @@ function App(): JSX.Element {
       }
 
       const data = await response.json()
-      console.log(data)
 
       if (currentRequestId !== requestIdRef.current) {
         return
       }
 
-      if (trimmedValue === '') {
-        return
-      }
-
-      const limited = (data.results ?? data).slice(0, 10)
+      const limited = (data.results ?? []).slice(0, 10)
       setPlaces(limited)
-      setDimensions(data.dimensions??[])
+      setDimensions(data.dimensions ?? [])
       setSelectedPlace(limited.length > 0 ? limited[0] : null)
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
@@ -85,12 +89,19 @@ function App(): JSX.Element {
       console.error('Search failed:', error)
       setPlaces([])
       setSelectedPlace(null)
+      setDimensions([])
     } finally {
       if (currentRequestId === requestIdRef.current) {
         setLoading(false)
       }
     }
   }
+
+  useEffect(() => {
+    if (searchTerm.trim() !== '') {
+      runSearch(searchTerm)
+    }
+  }, [baseModel, useSvd])
 
   const handleSearch = (value: string): void => {
     setSearchTerm(value)
@@ -142,7 +153,12 @@ function App(): JSX.Element {
 
   const resultCountText = useMemo(() => {
     if (searchTerm.trim() === '') return 'Search for places in New York'
-    if (loading) return 'Searching...'
+    if (loading) return (
+      <div className="loading-container">
+        <p>Loading...</p>
+        <div className="loading-spinner"/> 
+      </div>
+      )
     if (places.length === 0 && hasSearched) return 'No matches found'
     if (places.length === 1) return '1 result'
     return `${places.length} results`
@@ -155,7 +171,43 @@ function App(): JSX.Element {
       <aside className="sidebar">
         <div className="sidebar-header">
           <h1 className="app-title">I Love New York</h1>
+          <div className="search-controls">
+            <div className="control-group">
+              <span className="control-label">Base model</span>
+              <button
+                type="button"
+                className={baseModel === 'tfidf' ? 'control-btn active' : 'control-btn'}
+                onClick={() => setBaseModel('tfidf')}
+              >
+                TF-IDF
+              </button>
+              <button
+                type="button"
+                className={baseModel === 'sbert' ? 'control-btn active' : 'control-btn'}
+                onClick={() => setBaseModel('sbert')}
+              >
+                SBERT
+              </button>
+            </div>
 
+            <div className="control-group">
+              <span className="control-label">SVD</span>
+              <button
+                type="button"
+                className={!useSvd ? 'control-btn active' : 'control-btn'}
+                onClick={() => setUseSvd(false)}
+              >
+                Off
+              </button>
+              <button
+                type="button"
+                className={useSvd ? 'control-btn active' : 'control-btn'}
+                onClick={() => setUseSvd(true)}
+              >
+                On
+              </button>
+            </div>
+          </div>
           <div
             className="input-box"
             onClick={() => document.getElementById('search-input')?.focus()}
@@ -170,6 +222,24 @@ function App(): JSX.Element {
           </div>
 
           <p className="results-summary">{resultCountText}</p>
+
+        </div>
+
+        <div className="results-panel">
+          {searchTerm.trim() === '' && !loading && (
+            <div className="empty-state">
+              Start typing to see matching places appear on the map.
+            </div>
+          )}
+
+          {!loading && hasSearched && places.length === 0 && (
+            <div className="empty-state">
+              No places matched your search. Try something broader like
+              &nbsp;<strong>pizza</strong>, <strong>museum</strong>, or
+              &nbsp;<strong>date night</strong>.
+            </div>
+          )}
+
           {queryDimensions.length > 0 && (
             <div className="query-dims">
               <p className="query-dims-title">Query SVD dimensions</p>
@@ -192,29 +262,6 @@ function App(): JSX.Element {
                   </div>
                 )
               })}
-            </div>
-          )}
-        </div>
-
-        <div className="results-panel">
-          {searchTerm.trim() === '' && !loading && (
-            <div className="empty-state">
-              Start typing to see matching places appear on the map.
-            </div>
-          )}
-
-          {loading && (
-            <div className="loading-state">
-              <div className="loading-spinner" />
-              <p>Searching places...</p>
-            </div>
-          )}
-
-          {!loading && hasSearched && places.length === 0 && (
-            <div className="empty-state">
-              No places matched your search. Try something broader like
-              &nbsp;<strong>pizza</strong>, <strong>museum</strong>, or
-              &nbsp;<strong>date night</strong>.
             </div>
           )}
 

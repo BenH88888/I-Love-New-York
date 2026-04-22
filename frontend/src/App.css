@@ -36,6 +36,43 @@ body {
   background: linear-gradient(to bottom, #ffffff, #f9fbff);
 }
 
+.search-controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  margin-bottom: 10px;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.control-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #444;
+}
+
+.control-btn {
+  border: 1px solid #d0d0d0;
+  background: white;
+  color: #333;
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.control-btn.active {
+  background: #111;
+  color: white;
+  border-color: #111;
+}
+
 .app-title {
   margin: 0 0 16px;
   font-size: 2.2rem;

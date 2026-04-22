@@ -1,19 +1,35 @@
 from sklearn.feature_extraction.text import TfidfVectorizer
-import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.decomposition import TruncatedSVD
+import numpy as np
 from models import Place
 
+DEFAULT_SBERT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
-SEARCH_INDEX = {
-    "places": [],
-    "vectorizer": None,
-    "tfidf_matrix": None,
-    "svd": None,
-    "doc_vectors": None,
-    "doc_vectors_raw": None,
-    "feature_names": None,
+PIPELINE_INDEX = {
+    # ("tfidf", False): {...}
+    # ("tfidf", True): {...}
+    # ("sbert", False): {...}
+    # ("sbert", True): {...}
 }
+
+SBERT_MODEL = None
+
+SBERT_EMBEDDINGS_CACHE = {}
+
+
+def _places_signature(places):
+    if not places:
+        return ()
+    return tuple(place.id for place in places)
+
+
+def get_sbert_model():
+    global SBERT_MODEL
+    if SBERT_MODEL is None:
+        from sentence_transformers import SentenceTransformer
+        SBERT_MODEL = SentenceTransformer(DEFAULT_SBERT_MODEL)
+    return SBERT_MODEL
 
 
 def _build_combined_text(place):
@@ -26,410 +42,192 @@ def _build_combined_text(place):
     return f"{name} {description} {address} {price} {reviews}".strip()
 
 
-def build_search_index(places=None):
-    global SEARCH_INDEX
+def _empty_index():
+    return {
+        "places": [],
+        "base_model": None,
+        "use_svd": False,
+        "vectorizer": None,          # TF-IDF only
+        "encoder": None,             # SBERT only
+        "raw_doc_vectors": None,     # before SVD
+        "doc_vectors": None,         # after optional SVD
+        "svd": None,
+        "feature_names": None,       # TF-IDF only
+    }
+
+
+def _build_tfidf_vectors(texts):
+    vectorizer = TfidfVectorizer(
+        max_features=5000,
+        stop_words="english",
+        max_df=0.4,
+        min_df=1,
+    )
+    tfidf_matrix = vectorizer.fit_transform(texts)
+    feature_names = vectorizer.get_feature_names_out()
+
+    return {
+        "vectorizer": vectorizer,
+        "encoder": None,
+        "raw_doc_vectors": tfidf_matrix,
+        "feature_names": feature_names,
+    }
+
+
+def _build_sbert_vectors(texts):
+    global SBERT_EMBEDDINGS_CACHE
+
+    texts_key = tuple(texts)
+    if texts_key in SBERT_EMBEDDINGS_CACHE:
+        embeddings = SBERT_EMBEDDINGS_CACHE[texts_key]
+    else:
+        encoder = get_sbert_model()
+        embeddings = encoder.encode(
+            texts,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        )
+        SBERT_EMBEDDINGS_CACHE[texts_key] = embeddings
+
+    return {
+        "vectorizer": None,
+        "encoder": get_sbert_model(),
+        "raw_doc_vectors": embeddings,
+        "feature_names": None,
+    }
+
+
+def _maybe_apply_svd(raw_vectors, use_svd):
+    if not use_svd:
+        return None, raw_vectors
+
+    # sparse matrix case (TF-IDF) or dense matrix case (SBERT)
+    n_docs = raw_vectors.shape[0]
+    n_features = raw_vectors.shape[1]
+
+    if min(n_docs - 1, n_features - 1) < 2:
+        return None, raw_vectors
+
+    n_components = min(70, n_docs - 1, n_features - 1)
+    svd = TruncatedSVD(n_components=n_components, random_state=4300)
+    doc_vectors = svd.fit_transform(raw_vectors)
+
+    # normalize after SVD so cosine similarity behaves nicely
+    norms = np.linalg.norm(doc_vectors, axis=1, keepdims=True)
+    norms[norms == 0] = 1.0
+    doc_vectors = doc_vectors / norms
+
+    return svd, doc_vectors
+
+
+def build_search_index(places=None, base_model="tfidf", use_svd=True):
+    global PIPELINE_INDEX
 
     if places is None:
         places = Place.query.all()
 
     places = list(places)
+    places_sig = _places_signature(places)
+    key = (base_model, bool(use_svd), places_sig)
 
     if len(places) == 0:
-        SEARCH_INDEX = {
-            "places": [],
-            "vectorizer": None,
-            "tfidf_matrix": None,
-            "svd": None,
-            "doc_vectors": None,
-            "doc_vectors_raw": None,
-            "feature_names": None,
-        }
+        PIPELINE_INDEX[key] = _empty_index()
+        PIPELINE_INDEX[key]["base_model"] = base_model
+        PIPELINE_INDEX[key]["use_svd"] = bool(use_svd)
         return
 
     combined = [_build_combined_text(place) for place in places]
 
-    vectorizer = TfidfVectorizer(
-        max_features=5000,
-        stop_words="english",
-        max_df=0.4,
-        min_df=1
-    )
+    if base_model == "tfidf":
+        base = _build_tfidf_vectors(combined)
+    elif base_model == "sbert":
+        base = _build_sbert_vectors(combined)
+    else:
+        raise ValueError(f"Unsupported base_model: {base_model}")
 
-    tfidf_matrix = vectorizer.fit_transform(combined)
-    feature_names = vectorizer.get_feature_names_out()
+    svd, doc_vectors = _maybe_apply_svd(base["raw_doc_vectors"], use_svd)
 
-    n_docs, n_terms = tfidf_matrix.shape
-    use_svd = min(n_docs - 1, n_terms - 1) >= 2
-
-    svd = None
-    doc_vectors = tfidf_matrix
-
-    if use_svd:
-        n_components = min(70, n_docs - 1, n_terms - 1)
-        svd = TruncatedSVD(n_components=n_components, random_state=4300)
-        doc_vectors = svd.fit_transform(tfidf_matrix)
-
-    SEARCH_INDEX = {
+    PIPELINE_INDEX[key] = {
         "places": places,
-        "vectorizer": vectorizer,
-        "tfidf_matrix": tfidf_matrix,
-        "svd": svd,
+        "base_model": base_model,
+        "use_svd": bool(use_svd),
+        "vectorizer": base["vectorizer"],
+        "encoder": base["encoder"],
+        "raw_doc_vectors": base["raw_doc_vectors"],
         "doc_vectors": doc_vectors,
-        "doc_vectors_raw": tfidf_matrix,
-        "feature_names": feature_names,
+        "svd": svd,
+        "feature_names": base["feature_names"],
     }
 
 
-def rebuild_search_index(places=None):
-    build_search_index(places=places)
+def rebuild_all_search_indices(places=None):
+    for base_model in ["tfidf", "sbert"]:
+        for use_svd in [False, True]:
+            build_search_index(
+                places=places,
+                base_model=base_model,
+                use_svd=use_svd,
+            )
 
 
-def get_latent_dimensions(top_terms=10, top_dims=12):
-    if SEARCH_INDEX["svd"] is None or SEARCH_INDEX["feature_names"] is None:
+def _get_index(places=None, base_model="tfidf", use_svd=True):
+    if places is None:
+        places = Place.query.all()
+
+    places = list(places)
+    places_sig = _places_signature(places)
+    key = (base_model, bool(use_svd), places_sig)
+
+    if key not in PIPELINE_INDEX:
+        build_search_index(places=places, base_model=base_model, use_svd=use_svd)
+
+    return PIPELINE_INDEX[key]
+
+
+def _encode_query(query, index):
+    text = query.lower().strip()
+
+    if index["base_model"] == "tfidf":
+        query_vector = index["vectorizer"].transform([text])
+    elif index["base_model"] == "sbert":
+        query_vector = index["encoder"].encode(
+            [text],
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        )
+    else:
+        raise ValueError(f"Unsupported base_model: {index['base_model']}")
+
+    if index["svd"] is not None:
+        query_vector = index["svd"].transform(query_vector)
+
+        norms = np.linalg.norm(query_vector, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        query_vector = query_vector / norms
+
+    return query_vector
+
+
+def get_top_terms_for_place(place_index, places=None, base_model="tfidf", use_svd=False, top_k=4):
+    if base_model != "tfidf":
         return []
 
-    svd = SEARCH_INDEX["svd"]
-    feature_names = SEARCH_INDEX["feature_names"]
+    index = _get_index(places=places, base_model=base_model, use_svd=use_svd)
+    tfidf_matrix = index["raw_doc_vectors"]
+    feature_names = index["feature_names"]
+
+    if tfidf_matrix is None or feature_names is None:
+        return []
+
     block = {
         "new", "york", "street", "ave", "ny", "nyc", "city",
-         "place", "located", "offers", "featuring", "including",
+        "place", "located", "offers", "featuring", "including",
         "10301", "10001", "11354", "st", "area", "also", "known", "open", "just",
-        "like", "great", "good", "best", "located", "near", "east", "west",
-        "north", "south", "new", "old", "local", "pl", "rd"
+        "like", "great", "good", "best", "near", "east", "west",
+        "north", "south", "old", "local", "pl", "rd"
     }
-    dimensions = []
-    max_dims = min(top_dims, svd.components_.shape[0])
-
-    for dim_idx in range(max_dims):
-        component = svd.components_[dim_idx]
-
-        top_term_indices = np.argsort(component)[-top_terms:][::-1]
-        top_terms_for_dim = []
-        for i in top_term_indices:
-            term = feature_names[i]
-            if term not in block and not term.isdigit():
-                top_terms_for_dim.append(feature_names[i])
-            
-        if not top_terms_for_dim:
-            continue
-        dimensions.append({
-            "dimension": dim_idx,
-            "top_terms": top_terms_for_dim,
-        })
-
-    return dimensions
-
-
-def print_latent_dimensions(top_terms=10, top_dims=12):
-    dimensions = get_latent_dimensions(top_terms=top_terms, top_dims=top_dims)
-
-    if not dimensions:
-        print("No SVD dimensions available.")
-        return
-
-    print("\n=== Latent Dimensions ===")
-    for dim in dimensions:
-        print(f"\nDimension {dim['dimension']}:")
-        print(", ".join(dim["top_terms"]))
-    
-
-def analyze_query_dimensions(query, top_k=5):
-    if not query or not query.strip():
-        return None
-
-    if SEARCH_INDEX["vectorizer"] is None or len(SEARCH_INDEX["places"]) == 0:
-        build_search_index()
-
-    vectorizer = SEARCH_INDEX["vectorizer"]
-    svd = SEARCH_INDEX["svd"]
-
-    if svd is None:
-        return None
-
-    query_vector_raw = vectorizer.transform([query.lower().strip()])
-    query_vector_svd = svd.transform(query_vector_raw)[0]
-
-    positive_dims = np.argsort(query_vector_svd)[-top_k:][::-1]
-    negative_dims = np.argsort(query_vector_svd)[:top_k]
-
-    return {
-        "query": query,
-        "positive_dimensions": [
-            {
-                "dimension": int(i),
-                "activation": float(query_vector_svd[i]),
-            }
-            for i in positive_dims
-        ],
-        "negative_dimensions": [
-            {
-                "dimension": int(i),
-                "activation": float(query_vector_svd[i]),
-            }
-            for i in negative_dims
-        ],
-        "query_vector_svd": query_vector_svd,
-    }
-
-
-def print_query_dimension_analysis(query, top_k=5):
-    analysis = analyze_query_dimensions(query, top_k=top_k)
-
-    if analysis is None:
-        print("No SVD query analysis available.")
-        return
-
-    print(f"\n=== Query Dimension Analysis: '{analysis['query']}' ===")
-
-    print("\nTop POSITIVE dimensions:")
-    for item in analysis["positive_dimensions"]:
-        print(f"Dimension {item['dimension']}: {item['activation']:.4f}")
-
-    print("\nTop NEGATIVE dimensions:")
-    for item in analysis["negative_dimensions"]:
-        print(f"Dimension {item['dimension']}: {item['activation']:.4f}")
-
-
-def explain_result_match(query, place_id, top_k=5):
-    if not query or not query.strip():
-        return None
-
-    if SEARCH_INDEX["vectorizer"] is None or len(SEARCH_INDEX["places"]) == 0:
-        build_search_index()
-
-    vectorizer = SEARCH_INDEX["vectorizer"]
-    svd = SEARCH_INDEX["svd"]
-    places = SEARCH_INDEX["places"]
-    doc_vectors = SEARCH_INDEX["doc_vectors"]
-
-    if svd is None:
-        return None
-
-    place_index = None
-    for idx, place in enumerate(places):
-        if place.id == place_id:
-            place_index = idx
-            break
-
-    if place_index is None:
-        return None
-
-    query_vector_raw = vectorizer.transform([query.lower().strip()])
-    query_vector_svd = svd.transform(query_vector_raw)[0]
-    doc_vector_svd = doc_vectors[place_index]
-
-    alignment = query_vector_svd * doc_vector_svd
-
-    top_positive = np.argsort(alignment)[-top_k:][::-1]
-    top_negative = np.argsort(alignment)[:top_k]
-
-    place = places[place_index]
-
-    return {
-        "query": query,
-        "place_id": place.id,
-        "place_name": place.name,
-        "top_positive_matching_dimensions": [
-            {
-                "dimension": int(i),
-                "alignment": float(alignment[i]),
-                "query_activation": float(query_vector_svd[i]),
-                "document_activation": float(doc_vector_svd[i]),
-            }
-            for i in top_positive
-        ],
-        "top_negative_matching_dimensions": [
-            {
-                "dimension": int(i),
-                "alignment": float(alignment[i]),
-                "query_activation": float(query_vector_svd[i]),
-                "document_activation": float(doc_vector_svd[i]),
-            }
-            for i in top_negative
-        ],
-    }
-
-
-def print_result_match_explanation(query, place_id, top_k=5):
-    explanation = explain_result_match(query, place_id, top_k=top_k)
-
-    if explanation is None:
-        print("No explanation available.")
-        return
-
-    print(f"\n=== Match Explanation ===")
-    print(f"Query: {explanation['query']}")
-    print(f"Place: {explanation['place_name']} (id={explanation['place_id']})")
-
-    print("\nTop POSITIVE matching dimensions:")
-    for item in explanation["top_positive_matching_dimensions"]:
-        print(
-            f"Dimension {item['dimension']}: "
-            f"alignment={item['alignment']:.4f}, "
-            f"query={item['query_activation']:.4f}, "
-            f"doc={item['document_activation']:.4f}"
-        )
-
-    print("\nTop NEGATIVE matching dimensions:")
-    for item in explanation["top_negative_matching_dimensions"]:
-        print(
-            f"Dimension {item['dimension']}: "
-            f"alignment={item['alignment']:.4f}, "
-            f"query={item['query_activation']:.4f}, "
-            f"doc={item['document_activation']:.4f}"
-        )
-
-
-def get_results_no_svd(query, top=10, places=None):
-    if places is not None:
-        build_search_index(places=places)
-
-    if not query or not query.strip():
-        return []
-
-    if SEARCH_INDEX["vectorizer"] is None or len(SEARCH_INDEX["places"]) == 0:
-        build_search_index(places=places)
-
-    vectorizer = SEARCH_INDEX["vectorizer"]
-    doc_vectors_raw = SEARCH_INDEX["doc_vectors_raw"]
-    indexed_places = SEARCH_INDEX["places"]
-
-    query_vector = vectorizer.transform([query.lower().strip()])
-    similarities = cosine_similarity(query_vector, doc_vectors_raw)[0]
-
-    if similarities.size == 0 or similarities.max() <= 0:
-        return []
-
-    best_indices = np.argsort(-similarities)[:top]
-
-    results = []
-    for i in best_indices:
-        if similarities[i] <= 0:
-            continue
-
-        p = indexed_places[i]
-        results.append({
-            "id": p.id,
-            "name": p.name or "",
-            "description": p.description or "",
-            "rating": p.rating if p.rating is not None else 0,
-            "price_level": p.price_level or "",
-            "formatted_address": p.formatted_address or "",
-            "website_url": p.website_url or "",
-            "latitude": p.latitude if p.latitude is not None else 0,
-            "longitude": p.longitude if p.longitude is not None else 0,
-            "reviews_text_combined": p.reviews_text_combined or "",
-        })
-
-    return results
-
-
-def compare_search_methods(query, top=5):
-    no_svd_results = get_results_no_svd(query, top=top)
-    svd_results = get_results_svd(query, top=top)
-
-    print(f"\n=== Search Comparison for: '{query}' ===")
-
-    print("\nWITHOUT SVD:")
-    for idx, result in enumerate(no_svd_results, start=1):
-        print(f"{idx}. {result['name']}")
-
-    print("\nWITH SVD:")
-    for idx, result in enumerate(svd_results, start=1):
-        print(f"{idx}. {result['name']}")
-
-    return {
-        "query": query,
-        "without_svd": no_svd_results,
-        "with_svd": svd_results,
-    }
-
-def get_results(query, top=10, places=None):
-    if places is not None:
-        build_search_index(places=places)
-
-    if not query or not query.strip():
-        return []
-
-    if SEARCH_INDEX["vectorizer"] is None or len(SEARCH_INDEX["places"]) == 0:
-        build_search_index(places=places)
-
-    vectorizer = SEARCH_INDEX["vectorizer"]
-    svd = SEARCH_INDEX["svd"]
-    doc_vectors = SEARCH_INDEX["doc_vectors"]
-    indexed_places = SEARCH_INDEX["places"]
-
-    query_vector = vectorizer.transform([query.lower().strip()])
-
-    if svd is not None:
-        query_vector = svd.transform(query_vector)
-
-    similarities = cosine_similarity(query_vector, doc_vectors)[0]
-
-    if similarities.size == 0 or similarities.max() <= 0:
-        return []
-
-    best_indices = np.argsort(-similarities)[:top]
-
-    results = []
-    for i in best_indices:
-        if similarities[i] <= 0:
-            continue
-
-        p = indexed_places[i]
-        results.append({
-            "id": p.id,
-            "name": p.name or "",
-            "description": p.description or "",
-            "rating": p.rating if p.rating is not None else 0,
-            "price_level": p.price_level or "",
-            "formatted_address": p.formatted_address or "",
-            "website_url": p.website_url or "",
-            "latitude": p.latitude if p.latitude is not None else 0,
-            "longitude": p.longitude if p.longitude is not None else 0,
-            "reviews_text_combined": p.reviews_text_combined or "",
-            "similarity_score": float(similarities[i]),
-            "tags": get_top_terms_for_place(int(i), top_k=4),
-        })
-    latent_dims = get_latent_dimensions(top_terms=4, top_dims=svd.n_components)
-    dim_lookup = {d['dimension']: d['top_terms'] for d in latent_dims}
-
-    analysis = analyze_query_dimensions(query, top_k=2)
-    query_dims = []
-    if analysis:
-        all_dims = analysis['positive_dimensions'] + analysis['negative_dimensions']
-        query_dims = [
-            {
-                'dimension': item['dimension'],
-                'activation': item['activation'],
-                'terms': dim_lookup.get(item['dimension'], []),
-            }
-            for item in sorted(all_dims, key=lambda x: abs(x['activation']), reverse=True)
-        ]
-
-    return {
-        "results": results,
-        "dimensions": query_dims,
-    }
-
-
-
-def get_results_svd(query, top=10, places=None):
-    return get_results(query=query, top=top, places=places)
-
-def get_top_terms_for_place(place_index, top_k=4):
-    block = {
-        "new", "york", "street", "ave", "ny", "nyc", "city",
-         "place", "located", "offers", "featuring", "including",
-        "10301", "10001", "11354", "st", "area", "also", "known", "open", "just",
-        "like", "great", "good", "best", "located", "near", "east", "west",
-        "north", "south", "new", "old", "local", "pl", "rd"
-    }
-    tfidf_matrix = SEARCH_INDEX["doc_vectors_raw"]
-    feature_names = SEARCH_INDEX["feature_names"]
-
-    if tfidf_matrix is None:
-        return []
 
     row = tfidf_matrix[place_index].toarray()[0]
     top_indices = np.argsort(row)[::-1]
@@ -445,5 +243,193 @@ def get_top_terms_for_place(place_index, top_k=4):
     return tags
 
 
+def get_latent_dimensions(top_terms=10, top_dims=12, base_model="tfidf", use_svd=True):
+    index = _get_index(base_model=base_model, use_svd=use_svd)
+
+    if index["svd"] is None:
+        return []
+
+    # Only TF-IDF has interpretable feature names
+    if base_model != "tfidf" or index["feature_names"] is None:
+        return []
+
+    svd = index["svd"]
+    feature_names = index["feature_names"]
+
+    block = {
+        "new", "york", "street", "ave", "ny", "nyc", "city",
+        "place", "located", "offers", "featuring", "including",
+        "10301", "10001", "11354", "st", "area", "also", "known", "open", "just",
+        "like", "great", "good", "best", "near", "east", "west",
+        "north", "south", "old", "local", "pl", "rd"
+    }
+
+    dimensions = []
+    max_dims = min(top_dims, svd.components_.shape[0])
+
+    for dim_idx in range(max_dims):
+        component = svd.components_[dim_idx]
+        top_term_indices = np.argsort(component)[-top_terms:][::-1]
+
+        top_terms_for_dim = []
+        for i in top_term_indices:
+            term = feature_names[i]
+            if term not in block and not term.isdigit():
+                top_terms_for_dim.append(term)
+
+        if not top_terms_for_dim:
+            continue
+
+        dimensions.append({
+            "dimension": dim_idx,
+            "top_terms": top_terms_for_dim,
+        })
+
+    return dimensions
+
+
+def analyze_query_dimensions(query, top_k=5, base_model="tfidf", use_svd=True):
+    index = _get_index(base_model=base_model, use_svd=use_svd)
+
+    if not query or not query.strip():
+        return None
+
+    if index["svd"] is None:
+        return None
+
+    query_vector = _encode_query(query, index)[0]
+
+    positive_dims = np.argsort(query_vector)[-top_k:][::-1]
+    negative_dims = np.argsort(query_vector)[:top_k]
+
+    return {
+        "query": query,
+        "positive_dimensions": [
+            {
+                "dimension": int(i),
+                "activation": float(query_vector[i]),
+            }
+            for i in positive_dims
+        ],
+        "negative_dimensions": [
+            {
+                "dimension": int(i),
+                "activation": float(query_vector[i]),
+            }
+            for i in negative_dims
+        ],
+    }
+
+
+def _format_result(place, similarity_score, tags):
+    return {
+        "id": place.id,
+        "name": place.name or "",
+        "description": place.description or "",
+        "rating": place.rating if place.rating is not None else 0,
+        "price_level": place.price_level or "",
+        "formatted_address": place.formatted_address or "",
+        "website_url": place.website_url or "",
+        "latitude": place.latitude if place.latitude is not None else 0,
+        "longitude": place.longitude if place.longitude is not None else 0,
+        "reviews_text_combined": place.reviews_text_combined or "",
+        "similarity_score": float(similarity_score),
+        "tags": tags,
+    }
+
+
+def _search(query, top=10, places=None, base_model="tfidf", use_svd=True):
+    if not query or not query.strip():
+        return {"results": [], "dimensions": []}
+
+    index = _get_index(places=places, base_model=base_model, use_svd=use_svd)
+
+    if len(index["places"]) == 0:
+        return {"results": [], "dimensions": []}
+
+    query_vector = _encode_query(query, index)
+    similarities = cosine_similarity(query_vector, index["doc_vectors"])[0]
+
+    if similarities.size == 0:
+        return {"results": [], "dimensions": []}
+
+    best_indices = np.argsort(-similarities)[:top]
+
+    results = []
+    for i in best_indices:
+        if base_model == "tfidf" and similarities[i] <= 0:
+            continue
+
+        place = index["places"][i]
+        tags = get_top_terms_for_place(
+            i,
+            places=index["places"],
+            base_model="tfidf" if base_model == "tfidf" else "tfidf",
+            use_svd=False,
+            top_k=4,
+        )
+
+        results.append(_format_result(place, similarities[i], tags))
+
+    query_dims = []
+    analysis = analyze_query_dimensions(
+        query,
+        top_k=2,
+        base_model=base_model,
+        use_svd=use_svd,
+    )
+
+    if analysis and base_model == "tfidf":
+        latent_dims = get_latent_dimensions(
+            top_terms=4,
+            top_dims=index["svd"].n_components,
+            base_model=base_model,
+            use_svd=use_svd,
+        )
+        dim_lookup = {d["dimension"]: d["top_terms"] for d in latent_dims}
+
+        all_dims = analysis["positive_dimensions"] + analysis["negative_dimensions"]
+        query_dims = [
+            {
+                "dimension": item["dimension"],
+                "activation": item["activation"],
+                "terms": dim_lookup.get(item["dimension"], []),
+            }
+            for item in sorted(all_dims, key=lambda x: abs(x["activation"]), reverse=True)
+        ]
+
+    return {
+        "results": results,
+        "dimensions": query_dims,
+    }
+
+
+def get_results_tfidf(query, top=10, places=None):
+    return _search(query, top=top, places=places, base_model="tfidf", use_svd=False)
+
+
+def get_results_tfidf_svd(query, top=10, places=None):
+    return _search(query, top=top, places=places, base_model="tfidf", use_svd=True)
+
+
+def get_results_sbert(query, top=10, places=None):
+    return _search(query, top=top, places=places, base_model="sbert", use_svd=False)
+
+
+def get_results_sbert_svd(query, top=10, places=None):
+    return _search(query, top=top, places=places, base_model="sbert", use_svd=True)
+
+
+def get_results(query, top=10, places=None, base_model="tfidf", use_svd=True):
+    if base_model == "tfidf" and not use_svd:
+        return get_results_tfidf(query, top=top, places=places)
+    if base_model == "tfidf" and use_svd:
+        return get_results_tfidf_svd(query, top=top, places=places)
+    if base_model == "sbert" and not use_svd:
+        return get_results_sbert(query, top=top, places=places)
+    if base_model == "sbert" and use_svd:
+        return get_results_sbert_svd(query, top=top, places=places)
+
+    raise ValueError(f"Invalid combination: {base_model}, use_svd={use_svd}")
 
 

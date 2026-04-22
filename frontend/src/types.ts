@@ -18,3 +18,5 @@ export type QueryDimension= {
   activation: number;
   terms: string[];
 }
+
+export type BaseModel = 'tfidf' | 'sbert'
