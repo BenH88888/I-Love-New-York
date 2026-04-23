@@ -157,6 +157,13 @@ body {
   animation: spin 0.8s linear infinite;
 }
 
+.loading-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

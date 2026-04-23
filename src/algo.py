@@ -442,3 +442,9 @@ def get_results(query, top=10, places=None, base_model="tfidf", use_svd=True):
     raise ValueError(f"Invalid combination: {base_model}, use_svd={use_svd}")
 
 
+# Preload SBERT model on module import to avoid reload on first user request
+print("Loading SBERT model on startup...")
+get_sbert_model()
+print("SBERT model loaded successfully")
+
+
