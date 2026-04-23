@@ -7,7 +7,6 @@
  */
 import { useState, useRef, useEffect } from "react";
 import SendIcon from "./assets/mag.png";
-import { Place, QueryDimension } from "./types";
 
 interface Message {
   role: "user" | "assistant";
