@@ -320,8 +320,26 @@ def analyze_query_dimensions(query, top_k=5, base_model="tfidf", use_svd=True):
         ],
     }
 
+def get_place_dims(place_index, index, dim_lookup, top_k=2):
+    if index["svd"] is None or index["doc_vectors"] is None:
+        return []
+    doc_vector = index["doc_vectors"][place_index]
+    pos_indices = np.argsort(doc_vector)[-top_k:][::-1]
+    neg_indices = np.argsort(doc_vector)[:top_k]
+    dims = []
+    seen = set()
+    for i in list(pos_indices) + list(neg_indices):
+        if i in seen:
+            continue
+        seen.add(i)
+        terms = dim_lookup.get(int(i), [])
+        if not terms:
+            continue
+        dims.append({"dimension": int(i), "activation": float(doc_vector[i]), "terms": terms})
+    dims.sort(key=lambda d: d["activation"], reverse=True)
+    return dims
 
-def _format_result(place, similarity_score, tags):
+def _format_result(place, similarity_score, dims):
     return {
         "id": place.id,
         "name": place.name or "",
@@ -334,7 +352,7 @@ def _format_result(place, similarity_score, tags):
         "longitude": place.longitude if place.longitude is not None else 0,
         "reviews_text_combined": place.reviews_text_combined or "",
         "similarity_score": float(similarity_score),
-        "tags": tags,
+        "dims": dims,
     }
 
 
@@ -354,22 +372,20 @@ def _search(query, top=10, places=None, base_model="tfidf", use_svd=True):
         return {"results": [], "dimensions": []}
 
     best_indices = np.argsort(-similarities)[:top]
-
+    dim_lookup = {}
+    if base_model == "tfidf" and use_svd and index["svd"] is not None:
+        latent_dims = get_latent_dimensions(top_terms=4, top_dims=index["svd"].n_components, base_model=base_model, use_svd=use_svd)
+        dim_lookup = {d["dimension"]: d["top_terms"] for d in latent_dims}
     results = []
     for i in best_indices:
         if base_model == "tfidf" and similarities[i] <= 0:
             continue
 
         place = index["places"][i]
-        tags = get_top_terms_for_place(
-            i,
-            places=index["places"],
-            base_model="tfidf" if base_model == "tfidf" else "tfidf",
-            use_svd=False,
-            top_k=4,
-        )
-
-        results.append(_format_result(place, similarities[i], tags))
+        place_dims = [] 
+        if base_model == "tfidf" and use_svd:
+            place_dims = get_place_dims(i, index, dim_lookup)
+        results.append(_format_result(place, similarities[i], place_dims))
 
     query_dims = []
     analysis = analyze_query_dimensions(
@@ -380,13 +396,6 @@ def _search(query, top=10, places=None, base_model="tfidf", use_svd=True):
     )
 
     if analysis and base_model == "tfidf":
-        latent_dims = get_latent_dimensions(
-            top_terms=4,
-            top_dims=index["svd"].n_components,
-            base_model=base_model,
-            use_svd=use_svd,
-        )
-        dim_lookup = {d["dimension"]: d["top_terms"] for d in latent_dims}
 
         all_dims = analysis["positive_dimensions"] + analysis["negative_dimensions"]
         query_dims = [

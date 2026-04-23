@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import './App.css'
 import SearchIcon from './assets/mag.png'
-import { Place, QueryDimension, BaseModel } from './types'
+import { Place, QueryDimension, BaseModel, PlaceDim } from './types'
 import Chat from './Chat'
 import MapView from './MapView'
 
@@ -18,6 +18,9 @@ function App(): JSX.Element {
   const [useSvd, setUseSvd] = useState<boolean>(true)
   const [summaries, setSummaries] = useState<Record<number, string>>({})
   const [summaryLoading, setSummaryLoading] = useState<Record<number, boolean>>({})
+  const [dimLabels, setDimLabels] = useState<Record<number, string>>({})
+  const [openChips, setOpenChips] = useState<Record<number, Record<string, boolean>>>({})
+
 
   const requestIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -46,6 +49,7 @@ function App(): JSX.Element {
       setLoading(false)
       setHasSearched(false)
       setPlaces([])
+      setOpenChips({})
       setSelectedPlace(null)
       setDimensions([])
       return
@@ -78,11 +82,14 @@ function App(): JSX.Element {
       }
 
       const limited = (data.results ?? []).slice(0, 10)
+      const qDims: QueryDimension[] = data.dimensions ?? []
       setPlaces(limited)
-      setDimensions(data.dimensions ?? [])
+      setDimensions(qDims)
       setSelectedPlace(limited.length > 0 ? limited[0] : null)
+      const placeDimsList = limited.map((p: any) => p.dims ?? [])
+      fetchDimLabels(qDims, placeDimsList)
       if (useLlm && limited.length > 0) fetchSummary(limited[0])
-        
+
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
         return
@@ -125,6 +132,77 @@ function App(): JSX.Element {
   } finally {
     setSummaryLoading(prev => ({ ...prev, [place.id]: false }))
   }
+  }
+
+  const fetchDimLabels = async (queryDims: QueryDimension[], placeDimsList: PlaceDim[][]) => {
+    if (!useLlm) return
+    const seen = new Set<number>()
+    const toLabel: { dimension: number; top_terms: string[] }[] = []
+    const consider = (dim: number, terms: string[]) => {
+      if (seen.has(dim) || dimLabels[dim]) return
+      seen.add(dim)
+      if (terms.length > 0) toLabel.push({ dimension: dim, top_terms: terms })
+    }
+    for (const d of queryDims) consider(d.dimension, d.terms ?? [])
+    for (const dims of placeDimsList) for (const d of dims) consider(d.dimension, d.terms ?? [])
+    if (toLabel.length === 0) return
+    const res = await fetch('/api/label-dims', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ dims: toLabel }) })
+    const data = await res.json()
+    if (data.labels) setDimLabels(prev => ({ ...prev, ...data.labels }))
+  }
+
+  const PlaceDimBars = ({ dims }: { dims: PlaceDim[] }) => {
+    if (!dims || dims.length === 0) return null
+    const maxAbs = Math.max(...dims.map(d => Math.abs(d.activation)), 0.0001)
+    return (
+      <div className="query-dims place-dims">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+        <div className="query-dims-title" style={{ margin: 0 }}>Place SVD dimensions</div>
+        <div className="dims-info">
+          <div className="dims-info-icon">i</div>
+          <div className="dims-info-tooltip">
+            Each bar shows a latent topic this place strongly associates with.
+            Blue bars are themes the place leans toward; red means it leans away.
+            Labels are AI-generated from the top terms shown below them.
+          </div>
+        </div>
+      </div>
+        {dims.map(dim => {
+          const pct = (Math.abs(dim.activation) / maxAbs) * 45
+          const isPos = dim.activation >= 0
+          const label = dimLabels[dim.dimension]
+          return (
+            <div key={dim.dimension} className="dim-row">
+              <div className="dim-header">
+                <span className="dim-terms">
+                  {label && <span className="dim-label">{label}</span>}
+                  <span className="dim-top-terms">{dim.terms.join(' · ')}</span>
+                </span>
+                <span className="dim-num">{isPos ? '+' : ''}{dim.activation.toFixed(2)}</span>
+            </div>
+              <div className="bar-track">
+                <div className="bar-center" />
+                <div className={`bar-fill ${isPos ? 'bar-pos' : 'bar-neg'}`} style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  const toggleChip = (placeId: number, chip: string) => {
+  setOpenChips(prev => ({
+    ...prev,
+    [placeId]: {
+      ...prev[placeId],
+      [chip]: !(prev[placeId]?.[chip] ?? false) 
+    }
+  }))
+  }
+
+  const isChipOpen = (placeId: number, chip: string) => {
+  return openChips[placeId]?.[chip] ?? true
   }
 
   const handleSearch = (value: string): void => {
@@ -245,7 +323,7 @@ function App(): JSX.Element {
             />
           </div>
 
-          <p className="results-summary">{resultCountText}</p>
+          <div className="results-summary">{resultCountText}</div>
 
         </div>
 
@@ -266,15 +344,29 @@ function App(): JSX.Element {
 
           {queryDimensions.length > 0 && searchTerm.trim() !== '' && !loading  && baseModel !== 'sbert' && useSvd &&(
             <div className="query-dims">
-              <p className="query-dims-title">Query SVD dimensions</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <span className="query-dims-title">Query SVD fingerprint</span>
+              <div className="dims-info">
+                <div className="dims-info-icon">i</div>
+                <div className="dims-info-tooltip">
+                  Each bar is a latent topic found by SVD. The label is AI-generated from the top terms below it.
+                  Blue bars mean your query activates that theme; red means it pulls away from it.
+                  The number shows activation strength.
+                </div>
+              </div>
+            </div>
               {queryDimensions.map((dim) => {
                 const pct = Math.abs(dim.activation) * 50
                 const isPos = dim.activation >= 0
+                const label = dimLabels[dim.dimension]
                 return (
                   <div key={dim.dimension} className="dim-row">
                     <div className="dim-header">
-                      <span className="dim-terms">{dim.terms.join(' · ')}</span>
-                      <span className="dim-num">d{dim.dimension} {isPos ? '+' : ''}{dim.activation.toFixed(2)}</span>
+                      <span className="dim-terms">
+                        {label && <span className="dim-label">{label}</span>}
+                        <span className="dim-top-terms">{dim.terms?.join(' · ')}</span>
+                      </span>
+                      <span className="dim-num">{isPos ? '+' : ''}{dim.activation.toFixed(2)}</span>
                     </div>
                     <div className="bar-track">
                       <div className="bar-center" />
@@ -291,6 +383,7 @@ function App(): JSX.Element {
 
           {places.map((place) => {
             const isActive = selectedPlace?.id === place.id
+            const placeDims: PlaceDim[] = (place as any).dims ?? []
 
             return (
               <button
@@ -326,52 +419,65 @@ function App(): JSX.Element {
 
                     <div className='place-expanded'>
                       <div className='place-divide'>
-                      <div>
-                        {place.formatted_address && (
-                        <p className='place-address'>Address: {place.formatted_address}</p>
-                        )}
-                      </div>
-                      {place.tags?.length > 0 && (
-                        <div className="place-tags">
-                          {(place.tags ?? []).map((tag) => (
-                            <span key={tag} className="place-tag">{tag}</span>
-                          ))}
-                        </div>
-                      )}
-                      {place.website_url && (
-                        <a
-                          className="place-website"
-                          href={place.website_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
+                    {place.formatted_address && (
+                      <p className='place-address'>Address: {place.formatted_address}</p>
+                    )}
+                    {place.website_url && (
+                      <a
+                        className="place-website"
+                        href={place.website_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        View Website
+                      </a>
+                    )}
+
+                    <div className="chip-row">
+                      {baseModel === 'tfidf' && useSvd && placeDims.length > 0 && (
+                        <button
+                          className={`chip ${isChipOpen(place.id, 'dims') ? 'active' : ''}`}
+                          onClick={e => { e.stopPropagation(); toggleChip(place.id, 'dims') }}
                         >
-                          View Website
-                        </a>
+                          SVD fingerprint
+                        </button>
                       )}
                       {useLlm && (
-                      <div className="ai-summary-section">
-                        {summaryLoading[place.id] ? (
-                          <div className="ai-summary-loading">
-                            <div className="loading-spinner" />
-                            <span>Generating AI summary...</span>
-                          </div>
-                        ) : summaries[place.id] ? (
-                          <div className="ai-summary">
-                            <span className="ai-summary-label">✨ Why this matches your search</span>
-                            <p>{summaries[place.id]}</p>
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
+                        <button
+                          className={`chip ${isChipOpen(place.id, 'summary') ? 'active' : ''}`}
+                          onClick={e => { e.stopPropagation(); toggleChip(place.id, 'summary') }}
+                        >
+                          AI summary
+                        </button>
+                      )}
                     </div>
+
+                    <div className={`chip-section-body ${isChipOpen(place.id, 'dims') ? 'open' : ''}`}>
+                      <PlaceDimBars dims={placeDims} />
                     </div>
-                  )}
-                </div>
-              </button>
-            )
-          })}
-        </div>
+
+                    <div className={`chip-section-body ${isChipOpen(place.id, 'summary') ? 'open' : ''}`}>
+                      {summaryLoading[place.id] ? (
+                        <div className="ai-summary-loading">
+                          <div className="loading-spinner" />
+                          <span>Generating AI summary...</span>
+                        </div>
+                      ) : summaries[place.id] ? (
+                        <div className="ai-summary">
+                          <span className="ai-summary-label">Why this matches your search</span>
+                          <p>{summaries[place.id]}</p>
+                        </div>
+                      ) : null}
+                    </div> 
+                  </div>   
+                </div>     
+                )}
+              </div>       
+            </button>
+          )
+        })}
+      </div>   
 
       </aside>
 

@@ -93,6 +93,48 @@ def register_chat_route(app, json_search):
             logger.error(f"Summary failed: {e}")
             return jsonify({"error": str(e)}), 500
 
+    @app.route("/api/label-dims", methods=["POST"])
+    def label_dims():
+        data = request.get_json() or {}
+        dims = data.get("dims", [])
+        if not dims:
+            return jsonify({"labels": {}})
+        api_key = os.getenv("API_KEY")
+        if not api_key:
+            return jsonify({"error": "API_KEY not set"}), 500
+        dim_lines = "\n".join(
+            f"  dim {d['dimension']}: {', '.join(d['top_terms'][:6])}"
+            for d in dims
+        )
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are labelling latent SVD topic dimensions from a TF-IDF matrix "
+                    "of New York City places (restaurants, museums, parks, hotels, landmarks).\n\n"
+                    "For each dimension you will receive its top associated terms. "
+                    "Output ONLY a valid JSON object mapping each dimension number (as a string key) "
+                    "to a single short 2-4 word label (NOT a comma-separated list) that captures the overall theme, "
+                    "e.g. \"Italian Dining\", \"Outdoor Recreation\", or \"Japanese Cuisine\". "
+                    "One label per dimension only. "
+                    "No explanation, no markdown, no extra keys — pure JSON only."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Label these dimensions:\n{dim_lines}",
+            },
+        ]
+        try:
+            client = LLMClient(api_key=api_key)
+            raw = client.chat(messages)
+            raw_content = (raw.get("content") if isinstance(raw, dict) else raw or "").strip()
+            content = re.sub(r"^```[a-z]*\n?", "", raw_content).rstrip("` \n")
+            labels = json.loads(content)
+            return jsonify({"labels": {int(re.sub(r'\D', '', k)): v for k, v in labels.items() if re.search(r'\d', k)}})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     @app.route("/api/chat", methods=["POST"])
     def chat():
         data = request.get_json() or {}

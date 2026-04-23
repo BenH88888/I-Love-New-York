@@ -239,7 +239,7 @@ body {
 }
 
 .place-item.active .place-expanded {
-  max-height: 300px;
+  max-height: 800px;
   opacity: 1;
 }
 
@@ -453,7 +453,7 @@ body {
   color: #9ca3af;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin: 0 0 10px;
+  margin: 0;
 }
 
 .dim-row {
@@ -469,8 +469,21 @@ body {
 .dim-terms {
   font-size: 11px;
   color: #6b7280;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
+.dim-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.dim-top-terms {
+  font-size: 10px;
+  color: #9ca3af;
+}
 .dim-num {
   font-size: 11px;
   font-family: monospace;
@@ -602,4 +615,80 @@ body {
   color: #1e3a5f;
   line-height: 1.6;
   margin: 0;
+}
+.chip-row {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0 0;
+}
+
+.chip {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 0.5px solid #d1d5db;
+  color: #6b7280;
+  background: #f9fafb;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chip.active {
+  border-color: #1d4ed8;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.chip-section-body {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+  margin-top: 0;
+}
+
+.chip-section-body.open {
+  max-height: 400px;
+  opacity: 1;
+  margin-top: 8px;
+}
+.dims-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+}
+
+.dims-info-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid #9ca3af;
+  color: #9ca3af;
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-style: italic;
+  font-family: serif;
+  line-height: 1;
+}
+
+.dims-info-tooltip {
+  display: none;
+  position: absolute;
+  top: 20px;
+  right: 0;
+  width: 220px;
+  background: #1f2937;
+  color: #f9fafb;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+.dims-info:hover .dims-info-tooltip {
+  display: block;
 }

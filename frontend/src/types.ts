@@ -10,7 +10,7 @@ export interface Place {
   longitude: number;
   reviews_text_combined: string;
   similarity_score: number | null;
-  tags: string[];
+  dims?: PlaceDim[];
 }
 
 export type QueryDimension= {
@@ -20,3 +20,9 @@ export type QueryDimension= {
 }
 
 export type BaseModel = 'tfidf' | 'sbert'
+
+export interface PlaceDim {
+  dimension: number;
+  activation: number;
+  terms: string[];
+}
