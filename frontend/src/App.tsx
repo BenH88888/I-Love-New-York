@@ -491,14 +491,23 @@ function App(): JSX.Element {
     </main>
     {useLlm && (
       <div className="chat-section">
-        <button className="section-toggle chat-toggle" onClick={() => setChatOpen(o => !o)}>
-          <span className="section-toggle-left">
-            <span>✨</span>
-            <span className="section-title">AI Assistant</span>
-            <span className="section-count">RAG-powered</span>
-          </span>
-          <span className={`chevron ${chatOpen ? 'open' : ''}`}>›</span>
-        </button>
+      <button
+        className="chat-toggle-header"
+        onClick={() => setChatOpen((o) => !o)}
+        aria-expanded={chatOpen}
+      >
+        <div className="chat-header-left">
+          <div className="chat-avatar">✨</div>
+          <div>
+            <div className="chat-header-name">NYC AI Guide</div>
+            <div className="chat-header-sub">
+              <span className="status-dot" />
+              RAG-powered · uses your IR results
+            </div>
+          </div>
+        </div>
+        <span className={`chevron-white ${chatOpen ? 'open' : ''}`}>›</span>
+      </button>
         {chatOpen && <div className="chat-shell"><Chat onSearchTerm={runSearch} /></div>}
       </div>
     )}

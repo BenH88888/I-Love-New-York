@@ -86,12 +86,10 @@ export default function Chat({ onSearchTerm }: ChatProps) {
             continue;
           }
 
-          // ── First event: IR retrieval metadata ──────────────────────────
           if (payload.modified_query) {
             // Update the map / sidebar with the IR results
             onSearchTerm(payload.modified_query);
 
-            // Show the rewritten query in the assistant bubble
             setMessages((prev) => {
               const updated = [...prev];
               const last = updated[updated.length - 1];
@@ -105,7 +103,6 @@ export default function Chat({ onSearchTerm }: ChatProps) {
             });
           }
 
-          // ── Subsequent events: streamed LLM answer tokens ────────────────
           if (payload.content) {
             setMessages((prev) => {
               const updated = [...prev];
@@ -156,61 +153,56 @@ export default function Chat({ onSearchTerm }: ChatProps) {
   };
 
   return (
-    <div className="chat-shell-inner">
-      {/* ── Message history ─────────────────────────────────────────────── */}
-      <div id="messages">
-        {messages.length === 0 && (
-          <p className="chat-empty">
-            Ask me anything about places in New York City!
-          </p>
-        )}
+  <div className="chat-shell-inner">
+    
 
-        {messages.map((msg, i) => (
-          <div key={i} className={`message ${msg.role}`}>
-            {/* Show the rewritten IR query as a small badge */}
+
+      {messages.length > 0 && (
+      <div id="messages">
+      
+
+      {messages.map((msg, i) => (
+        <div key={i} className={`msg-row ${msg.role === "user" ? "user" : ""}`}>
+          <div className={`msg-avatar ${msg.role === "user" ? "user-av" : "ai-av"}`}>
+            {msg.role === "user" ? "👤" : "✨"}
+          </div>
+          <div className={`bubble ${msg.role === "user" ? "user" : "ai"}`}>
             {msg.role === "assistant" && msg.modifiedQuery && (
-              <div className="rag-query-badge">
-                🔍 Searched IR system for:{" "}
-                <strong>{msg.modifiedQuery}</strong>
+              <div className="rag-tag">
+                🔍 IR: {msg.modifiedQuery}
               </div>
             )}
-
-            {/* LLM answer (or user text) */}
             <p>{msg.content}</p>
-
-            {/* Loading dots while streaming */}
-            {msg.role === "assistant" &&
-              msg.content === "" &&
-              loading &&
-              i === messages.length - 1 && (
-                <div className="loading-indicator visible">
-                  <div className="loading-dot" />
-                  <div className="loading-dot" />
-                  <div className="loading-dot" />
-                </div>
-              )}
+            {msg.role === "assistant" && msg.content === "" && loading && i === messages.length - 1 && (
+              <div className="loading-indicator visible">
+                <div className="loading-dot" />
+                <div className="loading-dot" />
+                <div className="loading-dot" />
+              </div>
+            )}
           </div>
-        ))}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* ── Input bar ───────────────────────────────────────────────────── */}
-      <div className="chat-bar">
-        <div className="input-row">
-          <img src={SendIcon} alt="send" />
-          <input
-            placeholder="Ask about places in New York..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            disabled={loading}
-          />
-          <button onClick={sendMessage} disabled={loading}>
-            {loading ? "..." : "Ask"}
-          </button>
         </div>
+      ))}
+      <div ref={messagesEndRef} />
       </div>
+    )}
+    
+
+    <div className="chat-bar">
+      <div className="input-wrap">
+        <input
+          placeholder="Ask about places in New York..."
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          disabled={loading}
+        />
+      </div>
+      <button className="send-btn" onClick={sendMessage} disabled={loading}>
+        ➤
+      </button>
     </div>
+  </div>
+
   );
 }
