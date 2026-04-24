@@ -6,7 +6,6 @@
  * to update the search bar and results above.
  */
 import { useState, useRef, useEffect } from "react";
-import SendIcon from "./assets/mag.png";
 
 interface Message {
   role: "user" | "assistant";
