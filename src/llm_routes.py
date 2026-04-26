@@ -141,6 +141,8 @@ def register_chat_route(app, json_search):
         user_message = (data.get("message") or "").strip()
         if not user_message:
             return jsonify({"error": "Message is required"}), 400
+        base_model = data.get("base_model", "tfidf")
+        use_svd= data.get("use_svd", True)
 
         api_key = os.getenv("SPARK_API_KEY")
         if not api_key:
@@ -149,7 +151,7 @@ def register_chat_route(app, json_search):
         client = LLMClient(api_key=api_key)
         modified_query = rewrite_query(client, user_message)
 
-        ir_response = json_search(modified_query, top=10)
+        ir_response = json_search(modified_query, top=10,base_model=base_model, use_svd=use_svd)
         places = ir_response.get("results", []) if isinstance(ir_response, dict) else ir_response
         dimensions = ir_response.get("dimensions", []) if isinstance(ir_response, dict) else []
         context_text = build_rag_context(places)

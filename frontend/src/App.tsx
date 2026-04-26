@@ -508,7 +508,7 @@ function App(): JSX.Element {
         </div>
         <span className={`chevron-white ${chatOpen ? 'open' : ''}`}>›</span>
       </button>
-        {chatOpen && <div className="chat-shell"><Chat onSearchTerm={runSearch} /></div>}
+        {chatOpen && <div className="chat-shell"><Chat onSearchTerm={runSearch} baseModel ={baseModel} useSVD ={useSvd}/></div>}
       </div>
     )}
     </div>

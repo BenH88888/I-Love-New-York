@@ -10,15 +10,16 @@ import { useState, useRef, useEffect } from "react";
 interface Message {
   role: "user" | "assistant";
   content: string;
-  modifiedQuery?: string; // the LLM-rewritten IR query
+  modifiedQuery?: string;
 }
 
 interface ChatProps {
-  /** Called when RAG retrieves results — updates map + sidebar list */
   onSearchTerm: (query: string) => void;
+  baseModel: string;
+  useSVD: boolean;
 }
 
-export default function Chat({ onSearchTerm }: ChatProps) {
+export default function Chat({ onSearchTerm, baseModel, useSVD }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,11 +37,9 @@ export default function Chat({ onSearchTerm }: ChatProps) {
     setInput("");
     setLoading(true);
 
-    // Add user bubble immediately
     const userMsg: Message = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
 
-    // Placeholder for the assistant reply (will be filled by streaming)
     setMessages((prev) => [
       ...prev,
       { role: "assistant", content: "", modifiedQuery: undefined },
@@ -52,7 +51,7 @@ export default function Chat({ onSearchTerm }: ChatProps) {
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, baseModel: baseModel, useSVD:useSVD }),
         signal: abortRef.current.signal,
       });
 
@@ -86,7 +85,6 @@ export default function Chat({ onSearchTerm }: ChatProps) {
           }
 
           if (payload.modified_query) {
-            // Update the map / sidebar with the IR results
             onSearchTerm(payload.modified_query);
 
             setMessages((prev) => {
