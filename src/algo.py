@@ -39,7 +39,7 @@ def _build_combined_text(place):
     price = str(place.price_level) if place.price_level is not None else ""
     reviews = place.reviews_text_combined or ""
 
-    return f"{name} {description} {address} {price} {reviews}".strip()
+    return f"{name} {name} {name} {description} {description} {address} {price} {reviews}".strip()
 
 
 def _empty_index():
@@ -58,7 +58,7 @@ def _empty_index():
 
 def _build_tfidf_vectors(texts):
     vectorizer = TfidfVectorizer(
-        max_features=5000,
+        max_features=6000,
         stop_words="english",
         max_df=0.4,
         min_df=1,
@@ -109,7 +109,7 @@ def _maybe_apply_svd(raw_vectors, use_svd):
     if min(n_docs - 1, n_features - 1) < 2:
         return None, raw_vectors
 
-    n_components = min(70, n_docs - 1, n_features - 1)
+    n_components = min(150, n_docs - 1, n_features - 1)
     svd = TruncatedSVD(n_components=n_components, random_state=4300)
     doc_vectors = svd.fit_transform(raw_vectors)
 
