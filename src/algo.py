@@ -39,7 +39,7 @@ def _build_combined_text(place):
     price = str(place.price_level) if place.price_level is not None else ""
     reviews = place.reviews_text_combined or ""
 
-    return f"{name} {name} {name} {description} {description} {address} {price} {reviews}".strip()
+    return f"{name} {description} {address} {price} {reviews}".strip()
 
 
 def _empty_index():
